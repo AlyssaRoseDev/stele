@@ -1,147 +1,169 @@
+#![no_std]
 #![allow(dead_code)]
 #![feature(maybe_uninit_ref)]
 #![feature(maybe_uninit_uninit_array)]
 #![feature(maybe_uninit_extra)]
 
-use std::{
+use core::{
     cell::UnsafeCell,
+    marker::PhantomData,
     mem::MaybeUninit,
-    slice,
+    ptr::null_mut,
     sync::atomic::{fence, AtomicPtr, AtomicUsize, Ordering},
+    usize,
 };
+extern crate alloc;
+use alloc::alloc::{alloc, dealloc, Layout};
 
-const WORD_BITS: usize = std::mem::size_of::<usize>() * 8;
+const WORD_BITS: usize = core::mem::size_of::<usize>() * 8;
+
+pub(crate) unsafe fn alloc_inner<T>(len: usize) -> *mut crate::Inner<T> {
+    assert!(core::mem::size_of::<T>() != 0);
+    alloc(Layout::array::<T>(len).unwrap()) as *mut _
+}
+
+pub(crate) unsafe fn dealloc_inner<T>(ptr: *mut crate::Inner<T>, len: usize) {
+    assert!(core::mem::size_of::<T>() != 0);
+    dealloc(ptr as *mut _, Layout::array::<T>(len).unwrap())
+}
+
 #[derive(Debug)]
 pub(crate) struct Inner<T> {
-    raw: AtomicPtr<UnsafeCell<MaybeUninit<T>>>,
+    raw: MaybeUninit<UnsafeCell<T>>,
+    _marker: core::marker::PhantomData<T>,
 }
 
 impl<T> Inner<T> {
-    pub(crate) unsafe fn uninit(len: usize) -> Self {
-        let uninit: AtomicPtr<UnsafeCell<MaybeUninit<T>>> =
-            AtomicPtr::new(MaybeUninit::uninit().as_mut_ptr());
-        for n in 1..len {
-            uninit
-                .load(Ordering::Acquire)
-                .add(n)
-                .write(UnsafeCell::new(MaybeUninit::zeroed()))
+    pub(crate) fn init(val: T) -> Self {
+        let init: MaybeUninit<UnsafeCell<T>> = MaybeUninit::new(UnsafeCell::new(val));
+        Self {
+            raw: init,
+            _marker: PhantomData,
         }
-        Self { raw: uninit }
-    }
-    pub(crate) fn init(val: T, len: usize) -> Self {
-        let init: AtomicPtr<UnsafeCell<MaybeUninit<T>>> =
-            AtomicPtr::new(Box::leak(Box::new(UnsafeCell::new(MaybeUninit::new(val)))));
-        //SAFETY: The type is explicitly MaybeUninit so the compiler knows that the data inside may not be initialized
-        unsafe {
-            for n in 1..len {
-                let ptr = init.load(Ordering::Acquire).add(n);
-                println!("{:#?}", ptr as usize);
-                ptr.write(UnsafeCell::new(MaybeUninit::zeroed()));
-            }
-        };
-        Self { raw: init }
-    }
-
-    //SAFETY: The caller of this function must ensure the index is inbounds,
-    //valid for the underlying Inner, and has not been previously written to
-    pub(crate) unsafe fn write(&self, val: T, idx: usize) {
-        self.raw.load(Ordering::Acquire).add(idx).as_ref().unwrap();
-        fence(Ordering::SeqCst)
     }
 
     //SAFETY: The caller of this function must ensure the index
     //is inbounds and valid for the underlying Inner
-    pub(crate) unsafe fn read(&self, idx: usize) -> &T {
-        self.raw
-            .load(Ordering::Acquire)
-            .add(idx)
-            .as_ref()
-            .unwrap()
-            .get()
-            .as_ref()
-            .unwrap()
-            .assume_init_ref()
+    pub(crate) unsafe fn read(&self) -> &T {
+        self.raw.assume_init_ref().get().as_ref().unwrap()
     }
 }
 #[derive(Debug)]
 pub struct Stele<T> {
-    inners: [MaybeUninit<Inner<T>>; WORD_BITS],
+    inners: [AtomicPtr<Inner<T>>; WORD_BITS],
     len: AtomicUsize,
 }
 
+fn split_idx(idx: usize) -> (usize, usize) {
+    match idx {
+        0 => (0, 0),
+        _ => {
+            let outer_idx = WORD_BITS - idx.leading_zeros() as usize;
+            let inner_idx = 1 << outer_idx - 1;
+            (outer_idx, idx - inner_idx)
+        }
+    }
+}
+
+const fn max_len(n: usize) -> usize {
+    match n {
+        0 | 1 => 1,
+        _ => 1 << n - 1,
+    }
+}
+
 impl<T> Stele<T> {
+    const NULL_ATOMIC: AtomicPtr<Inner<T>> = AtomicPtr::new(null_mut());
     pub fn new() -> Self {
         Stele {
-            inners: MaybeUninit::uninit_array(),
+            inners: [Stele::NULL_ATOMIC; WORD_BITS],
             len: AtomicUsize::new(0),
         }
     }
 
     pub fn read(&self, idx: usize) -> &T {
-        assert!(self.len.load(Ordering::Acquire) > idx);
-        let (oidx, iidx) = Self::split_idx(idx);
+        assert!(self.len.load(Ordering::Relaxed) > idx);
+        let (oidx, iidx) = crate::split_idx(idx);
         //SAFETY: The assertion validates that this value exists and is initialized
-        unsafe { self.inners[oidx].assume_init_ref().read(iidx) }
+        unsafe {
+            self.inners[oidx]
+                .load(Ordering::Relaxed)
+                .add(iidx)
+                .as_ref()
+                .unwrap()
+                .read()
+        }
     }
 
     pub fn write(&mut self, val: T) {
         let idx = self.len.fetch_add(1, Ordering::AcqRel);
-        let (oidx, iidx) = Self::split_idx(idx);
-        if idx.is_power_of_two() {
-            self.inners[oidx].write(Inner::init(val, idx - 1));
-        } else if idx == 0 || idx == 1 {
-            self.inners[oidx].write(Inner::init(val, 1));
-        } else {
-            unsafe { self.inners[oidx].assume_init_mut().write(val, iidx) }
-        }
-    }
-
-    fn split_idx(idx: usize) -> (usize, usize) {
-        match idx {
-            0 => (0, 0),
-            _ => {
-                let outer_idx = WORD_BITS - 1 - idx.leading_zeros() as usize;
-                let inner_idx = idx & (outer_idx - 1);
-                (outer_idx, inner_idx)
+        let (oidx, iidx) = crate::split_idx(idx);
+        unsafe {
+            if idx == 0 || idx == 1 {
+                self.inners[oidx]
+                    .compare_exchange(
+                        null_mut(),
+                        alloc_inner(1),
+                        Ordering::AcqRel,
+                        Ordering::Relaxed,
+                    )
+                    .unwrap();
+                *self.inners[oidx].load(Ordering::Acquire) = Inner::init(val);
+            } else if idx.is_power_of_two() && !(idx == 0 || idx == 1) {
+                self.inners[oidx]
+                    .compare_exchange(
+                        null_mut(),
+                        alloc_inner(max_len(oidx)),
+                        Ordering::AcqRel,
+                        Ordering::Relaxed,
+                    )
+                    .unwrap();
+                *self.inners[oidx].load(Ordering::Acquire) = Inner::init(val)
+            } else {
+                *self.inners[oidx].load(Ordering::Acquire).add(iidx) = Inner::init(val)
             }
+            fence(Ordering::SeqCst)
         }
     }
-
-    // pub fn as_slices(&self) -> &[&[T]] {
-    //     let len = self.len.load(Ordering::Acquire);
-    //     let pointers = (len.next_power_of_two() - 1).count_ones() as usize;
-    //     let m: Vec<_> = unsafe {
-    //         (0..pointers)
-    //             .map(|n| {
-    //                 slice::from_raw_parts(
-    //                     self.inners[n]
-    //                         .assume_init()
-    //                         .raw
-    //                         .load(Ordering::Acquire)
-    //                         .as_ref()
-    //                         .unwrap()
-    //                         .get()
-    //                         .as_ref()
-    //                         .unwrap()
-    //                         .as_mut_ptr(),
-    //                     (1 << n) - 1,
-    //                 )
-    //             })
-    //             .collect()
-    //     };
-    //     return m.as_slice();
-    // }
 }
 
 impl<T> Drop for Stele<T> {
     fn drop(&mut self) {
-        unimplemented!()
+        let l = self.len.get_mut();
+        let n_ptrs = (l.next_power_of_two() - 1).count_ones() as usize;
+        let _: () = unsafe {
+            (0..=n_ptrs)
+                .map(|n| match n {
+                    0 | 1 => dealloc_inner(*self.inners[n].get_mut(), 1),
+                    _ => dealloc_inner(*self.inners[n].get_mut(), max_len(n)),
+                })
+                .collect()
+        };
     }
 }
 
-#[test]
-fn write_one() {
-    let mut s: Stele<u8> = Stele::new();
-    s.write(1);
-    s.read(0);
+#[cfg(test)]
+#[macro_use]
+extern crate std;
+#[cfg(test)]
+use std::prelude::v1::*;
+
+mod test {
+
+    #[test]
+    fn write_one() {
+        let mut s: crate::Stele<u8> = crate::Stele::new();
+        let _: () = (0..10).map(|n| s.write(n)).collect();
+        s.read(0);
+    }
+
+    // #[test]
+    // fn split_test() {
+    //     let _: () = (0..256)
+    //         .map(|n: usize| {
+    //             let (o, i) = crate::split_idx(n);
+    //             println!("index {}, outer {}, inner {}", n, o, i)
+    //         })
+    //         .collect();
+    // }
 }
