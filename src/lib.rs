@@ -171,6 +171,32 @@ impl<T> Drop for Stele<T> {
     }
 }
 
+struct ReadHandle<'a, T> {
+    _marker: PhantomData<&'a Stele<T>>,
+}
+
+impl<'a, T> IntoIterator for ReadHandle<'a, T> {
+    type Item = &'a T;
+
+    type IntoIter = SteleIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        todo!()
+    }
+}
+
+struct SteleIter<'a, T> {
+    _marker: PhantomData<&'a Stele<T>>,
+}
+
+impl<'a, T> Iterator for SteleIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
+    }
+}
+
 #[cfg(test)]
 #[macro_use]
 extern crate std;
