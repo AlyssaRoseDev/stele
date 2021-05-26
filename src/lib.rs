@@ -8,7 +8,8 @@ use core::{
     cell::UnsafeCell,
     marker::PhantomData,
     mem::MaybeUninit,
-    ptr::null_mut,
+    ops::Index,
+    ptr::{null_mut, NonNull},
     sync::atomic::{fence, AtomicPtr, AtomicUsize, Ordering},
     usize,
 };
@@ -18,13 +19,17 @@ use alloc::alloc::{alloc, dealloc, Layout};
 const WORD_BITS: usize = core::mem::size_of::<usize>() * 8;
 
 pub(crate) unsafe fn alloc_inner<T>(len: usize) -> *mut crate::Inner<T> {
-    assert!(core::mem::size_of::<T>() != 0);
-    alloc(Layout::array::<T>(len).unwrap()) as *mut _
+    if core::mem::size_of::<T>() == 0 {
+        NonNull::dangling().as_ptr()
+    } else {
+        alloc(Layout::array::<T>(len).unwrap()) as *mut _
+    }
 }
 
 pub(crate) unsafe fn dealloc_inner<T>(ptr: *mut crate::Inner<T>, len: usize) {
-    assert!(core::mem::size_of::<T>() != 0);
-    dealloc(ptr as *mut _, Layout::array::<T>(len).unwrap())
+    if core::mem::size_of::<T>() != 0 {
+        dealloc(ptr as *mut _, Layout::array::<T>(len).unwrap())
+    }
 }
 
 #[derive(Debug)]
@@ -95,7 +100,23 @@ impl<T> Stele<T> {
         }
     }
 
-    pub fn write(&mut self, val: T) {
+    pub fn try_read(&self, idx: usize) -> Option<&T> {
+        let len = self.len.load(Ordering::Acquire);
+        if len < idx {
+            return None;
+        } else {
+            let (oidx, iidx) = split_idx(idx);
+            Some(unsafe {
+                self.inners[oidx]
+                    .load(Ordering::Acquire)
+                    .add(iidx)
+                    .as_ref()?
+                    .read()
+            })
+        }
+    }
+
+    pub fn write(&self, val: T) {
         let idx = self.len.fetch_add(1, Ordering::AcqRel);
         let (oidx, iidx) = crate::split_idx(idx);
         unsafe {
@@ -127,6 +148,14 @@ impl<T> Stele<T> {
     }
 }
 
+impl<T> Index<usize> for Stele<T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        self.read(index)
+    }
+}
+
 impl<T> Drop for Stele<T> {
     fn drop(&mut self) {
         let l = self.len.get_mut();
@@ -151,10 +180,16 @@ use std::prelude::v1::*;
 mod test {
 
     #[test]
-    fn write_one() {
-        let mut s: crate::Stele<u8> = crate::Stele::new();
-        let _: () = (0..10).map(|n| s.write(n)).collect();
+    fn write_test() {
+        let s: crate::Stele<usize> = crate::Stele::new();
+        let _: () = (0..1 << 16).map(|n| s.write(n)).collect();
         s.read(0);
+    }
+
+    #[test]
+    fn write_zst() {
+        let s: crate::Stele<()> = crate::Stele::new();
+        let _: () = (0..256).map(|_| s.write(())).collect();
     }
 
     // #[test]
