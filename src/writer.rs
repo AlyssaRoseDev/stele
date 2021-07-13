@@ -30,3 +30,5 @@ impl<T> Drop for WriteHandle<T> {
         let _ = unsafe { Box::from_raw(self.data.as_ptr()) };
     }
 }
+
+unsafe impl<T> Send for WriteHandle<T> where T: Send {}

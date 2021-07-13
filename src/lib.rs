@@ -76,9 +76,6 @@ pub struct Stele<T> {
     length: AtomicUsize,
 }
 
-unsafe impl<T> Send for Stele<T> where T: Send {}
-unsafe impl<T> Sync for Stele<T> where T: Sync {}
-
 const fn split_idx(idx: usize) -> (usize, usize) {
     match idx {
         0 => (0, 0),

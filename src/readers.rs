@@ -86,7 +86,8 @@ impl<'a, T> IntoIterator for &'a ReadHandle<T> {
     }
 }
 
-unsafe impl<T> Send for ReadHandle<T> where Stele<T>: Sync {}
+unsafe impl<T> Send for ReadHandle<T> where T: Send {}
+unsafe impl<T> Sync for ReadHandle<T> where T: Sync {}
 
 pub struct WeakHandle<T> {
     inner: Weak<AtomicPtr<Stele<T>>>,
