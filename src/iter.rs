@@ -1,14 +1,14 @@
 use super::*;
 
 pub struct SteleLiveIter<'a, T> {
-    handle: &'a ReadHandle<T>,
+    handle: &'a Stele<T>,
     pos: usize,
 }
 
 impl<'a, T> SteleLiveIter<'a, T> {
-    pub fn new(hand: &'a ReadHandle<T>) -> Self {
+    pub fn new(handle: &'a Stele<T>) -> Self {
         SteleLiveIter {
-            handle: hand,
+            handle,
             pos: 0,
         }
     }
@@ -28,13 +28,13 @@ impl<'a, T> Iterator for SteleLiveIter<'a, T> {
     }
 }
 
-pub struct CopyIter<T: Copy> {
-    handle: ReadHandle<T>,
+pub struct CopyIter<'a, T: Copy> {
+    handle: &'a Stele<T>,
     pos: usize,
 }
 
-impl<T: Copy> CopyIter<T> {
-    pub fn new(handle: ReadHandle<T>) -> Self {
+impl<'a, T: Copy> CopyIter<'a, T> {
+    pub fn new(handle: &'a Stele<T>) -> Self {
         Self { handle, pos: 0 }
     }
     fn len(&self) -> usize {
@@ -45,7 +45,7 @@ impl<T: Copy> CopyIter<T> {
     }
 }
 
-impl<T: Copy> Iterator for CopyIter<T> {
+impl<'a, T: Copy> Iterator for CopyIter<'a, T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
