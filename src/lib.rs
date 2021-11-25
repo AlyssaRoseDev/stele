@@ -163,7 +163,7 @@ impl<T> Stele<T> {
     fn allocate(&self) {
         let cap = self.cap.load(Ordering::Acquire);
         let idx = WORD_SIZE - cap.leading_zeros() as usize;
-        self.inners[idx].compare_exchange(null_mut(), unsafe{crate::alloc_inner(1<<idx)}, Ordering::AcqRel, Ordering::Acquire).unwrap();
+        self.inners[idx].compare_exchange(null_mut(), unsafe{crate::alloc_inner((1<<idx) - 1)}, Ordering::AcqRel, Ordering::Relaxed).unwrap();
     }
 }
 
@@ -219,11 +219,10 @@ impl<T> Drop for Stele<T> {
     fn drop(&mut self) {
         let size = *self.cap.get_mut();
         let num_inners = WORD_SIZE - size.leading_zeros() as usize;
-        unsafe {dealloc_inner(*self.inners[num_inners].get_mut(), size - (1 << (num_inners - 1)));
         for idx in 0..num_inners {
-            dealloc_inner(*self.inners[idx].get_mut(), max_len(idx))
+            unsafe {dealloc_inner(*self.inners[idx].get_mut(), max_len(idx));}
         }
-    }}
+    }
 }
 
 mod test {
