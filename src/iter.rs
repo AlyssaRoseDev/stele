@@ -7,10 +7,7 @@ pub struct SteleLiveIter<'a, T> {
 
 impl<'a, T> SteleLiveIter<'a, T> {
     pub fn new(handle: &'a Stele<T>) -> Self {
-        SteleLiveIter {
-            handle,
-            pos: 0,
-        }
+        SteleLiveIter { handle, pos: 0 }
     }
 }
 
