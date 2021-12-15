@@ -1,17 +1,17 @@
 use super::*;
 
-pub struct SteleLiveIter<'a, T> {
+pub struct SteleLiveIter<'a, T: Debug> {
     handle: &'a Stele<T>,
     pos: usize,
 }
 
-impl<'a, T> SteleLiveIter<'a, T> {
+impl<'a, T: Debug> SteleLiveIter<'a, T> {
     pub fn new(handle: &'a Stele<T>) -> Self {
         SteleLiveIter { handle, pos: 0 }
     }
 }
 
-impl<'a, T> Iterator for SteleLiveIter<'a, T> {
+impl<'a, T: Debug> Iterator for SteleLiveIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -25,12 +25,12 @@ impl<'a, T> Iterator for SteleLiveIter<'a, T> {
     }
 }
 
-pub struct CopyIter<'a, T: Copy> {
+pub struct CopyIter<'a, T: Copy + Debug> {
     handle: &'a Stele<T>,
     pos: usize,
 }
 
-impl<'a, T: Copy> CopyIter<'a, T> {
+impl<'a, T: Copy + Debug> CopyIter<'a, T> {
     pub fn new(handle: &'a Stele<T>) -> Self {
         Self { handle, pos: 0 }
     }
@@ -42,7 +42,7 @@ impl<'a, T: Copy> CopyIter<'a, T> {
     }
 }
 
-impl<'a, T: Copy> Iterator for CopyIter<'a, T> {
+impl<'a, T: Copy + Debug> Iterator for CopyIter<'a, T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {

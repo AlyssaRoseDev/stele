@@ -5,7 +5,8 @@
     maybe_uninit_uninit_array,
     maybe_uninit_extra,
     allocator_api,
-    slice_ptr_get
+    slice_ptr_get,
+    inline_const
 )]
 
 //! Stele: A Send/Sync Append only data structure
@@ -13,16 +14,26 @@
 use std::{
     alloc::{Allocator, Global, Layout},
     cell::UnsafeCell,
+    fmt::Debug,
     iter::FromIterator,
     mem::MaybeUninit,
     ops::Index,
     ptr::{null_mut, NonNull},
-    sync::atomic::{fence, AtomicPtr, AtomicUsize, Ordering},
+    sync::atomic::Ordering,
 };
 
-mod iter;
+use crate::sync::*;
 
+mod iter;
+mod sync;
+
+#[cfg(not(loom))]
 const WORD_SIZE: usize = usize::BITS as usize;
+#[cfg(loom)]
+const WORD_SIZE: usize = 8;
+#[cfg(loom)]
+const SHIFT_OFFSET: usize = 64 - 8;
+
 pub(crate) unsafe fn alloc_inner<T, A: Allocator>(
     allocator: &A,
     len: usize,
@@ -77,11 +88,23 @@ where
     }
 }
 
+#[cfg(not(loom))]
 const fn split_idx(idx: usize) -> (usize, usize) {
     match idx {
         0 => (0, 0),
         _ => {
             let outer_idx = WORD_SIZE - idx.leading_zeros() as usize;
+            let inner_idx = 1 << (outer_idx - 1);
+            (outer_idx, idx - inner_idx)
+        }
+    }
+}
+#[cfg(loom)]
+const fn split_idx(idx: usize) -> (usize, usize) {
+    match idx {
+        0 => (0, 0),
+        _ => {
+            let outer_idx = WORD_SIZE - (idx.leading_zeros() as usize - SHIFT_OFFSET);
             let inner_idx = 1 << (outer_idx - 1);
             (outer_idx, idx - inner_idx)
         }
@@ -95,42 +118,41 @@ const fn max_len(n: usize) -> usize {
     }
 }
 #[derive(Debug)]
-pub struct Stele<T, A: Allocator = Global> {
+pub struct Stele<T: Debug, A: Allocator = Global> {
     inners: [AtomicPtr<Inner<T>>; WORD_SIZE],
     cap: AtomicUsize,
     allocator: A,
 }
 
-impl<T> Stele<T> {
+impl<T: Debug> Stele<T> {
     pub fn new() -> Self {
         Self {
-            inners: [Self::NULL_ATOMIC; WORD_SIZE],
-            cap: Self::ZERO,
+            inners : [(); WORD_SIZE].map(|_|crate::sync::AtomicPtr::new(null_mut())),
+            cap: AtomicUsize::new(0),
             allocator: Global,
         }
     }
 }
 
-impl<T, A: Allocator> Stele<T, A> {
-    #[allow(clippy::declare_interior_mutable_const)]
-    const NULL_ATOMIC: AtomicPtr<Inner<T>> = AtomicPtr::new(null_mut());
-    #[allow(clippy::declare_interior_mutable_const)]
-    const ZERO: AtomicUsize = AtomicUsize::new(0);
+impl<T: Debug, A: Allocator> Stele<T, A> {
     pub fn new_in(allocator: A) -> Self {
         Self {
-            inners: [Self::NULL_ATOMIC; WORD_SIZE],
-            cap: Self::ZERO,
+            inners : [(); WORD_SIZE].map(|_|crate::sync::AtomicPtr::new(null_mut())),
+            cap: AtomicUsize::new(0),
             allocator,
         }
     }
+
     unsafe fn read_raw(&self, idx: usize) -> *mut Inner<T> {
         let (oidx, iidx) = split_idx(idx);
         unsafe { self.inners[oidx].load(Ordering::Relaxed).add(iidx) }
     }
+
     pub fn read(&self, idx: usize) -> &T {
         assert!(self.cap.load(Ordering::Acquire) > idx);
         unsafe { self.read_raw(idx).as_ref().unwrap().read() }
     }
+
     pub fn try_read(&self, idx: usize) -> Option<&T> {
         if self.cap.load(Ordering::Acquire) < idx {
             None
@@ -139,6 +161,7 @@ impl<T, A: Allocator> Stele<T, A> {
             unsafe { Some(self.read_raw(idx).as_ref().unwrap().read()) }
         }
     }
+
     pub fn push(&self, val: T) {
         let idx = self.cap.fetch_add(1, Ordering::AcqRel);
         let (oidx, iidx) = split_idx(idx);
@@ -157,7 +180,7 @@ impl<T, A: Allocator> Stele<T, A> {
             } else {
                 *self.inners[oidx].load(Ordering::Acquire).add(iidx) = Inner::init(val)
             }
-            fence(Ordering::SeqCst)
+            fence(Ordering::Release)
         }
     }
 
@@ -175,7 +198,10 @@ impl<T, A: Allocator> Stele<T, A> {
 
     fn allocate(&self) {
         let cap = self.cap.load(Ordering::Acquire);
+        #[cfg(not(loom))]
         let idx = WORD_SIZE - cap.leading_zeros() as usize;
+        #[cfg(loom)]
+        let idx = WORD_SIZE - (cap.leading_zeros() as usize - SHIFT_OFFSET);
         self.inners[idx]
             .compare_exchange(
                 null_mut(),
@@ -186,18 +212,13 @@ impl<T, A: Allocator> Stele<T, A> {
             .unwrap();
     }
 }
-
-impl<T> Default for Stele<T> {
+impl<T: Debug> Default for Stele<T> {
     fn default() -> Self {
-        Self {
-            inners: [Self::NULL_ATOMIC; WORD_SIZE],
-            cap: AtomicUsize::new(0),
-            allocator: Global,
-        }
+        Self::new()
     }
 }
 
-impl<T: Copy, A: Allocator> Stele<T, A> {
+impl<T: Debug + Copy, A: Allocator> Stele<T, A> {
     /// Get provides a way to get an owned copy of a value inside a Stele
     /// provided the T implements copy
     pub fn get(&self, idx: usize) -> T {
@@ -206,9 +227,9 @@ impl<T: Copy, A: Allocator> Stele<T, A> {
     }
 }
 
-impl<T> FromIterator<T> for Stele<T> {
+impl<T: Debug> FromIterator<T> for Stele<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let s: Stele<T> = Stele::default();
+        let s: Stele<T> = Stele::new();
         let it = iter.into_iter();
         for elem in it {
             s.push(elem)
@@ -217,7 +238,7 @@ impl<T> FromIterator<T> for Stele<T> {
     }
 }
 
-impl<T, A: Allocator> Index<usize> for Stele<T, A> {
+impl<T: Debug, A: Allocator> Index<usize> for Stele<T, A> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -225,42 +246,31 @@ impl<T, A: Allocator> Index<usize> for Stele<T, A> {
     }
 }
 
-impl<T, A: Allocator> Drop for Stele<T, A> {
+impl<T: Debug, A: Allocator> Drop for Stele<T, A> {
     fn drop(&mut self) {
+        #[cfg(not(loom))]
         let size = *self.cap.get_mut();
+        #[cfg(loom)]
+        let size = unsafe {self.cap.unsync_load()};
+        #[cfg(not(loom))]
         let num_inners = WORD_SIZE - size.leading_zeros() as usize;
+        #[cfg(loom)]
+        let num_inners = WORD_SIZE - (size.leading_zeros() as usize - SHIFT_OFFSET);
         for idx in 0..num_inners {
+            #[cfg(not(loom))]
             unsafe {
                 dealloc_inner(&self.allocator, *self.inners[idx].get_mut(), max_len(idx));
+            }
+            #[cfg(loom)]
+            unsafe {
+                dealloc_inner(
+                    &self.allocator,
+                    self.inners[idx].unsync_load(),
+                    max_len(idx),
+                );
             }
         }
     }
 }
 
-mod test {
-    #[allow(unused_imports)]
-    use super::*;
-    #[test]
-    fn write_test() {
-        let s: Stele<usize> = Stele::new();
-        let _: () = (0..1 << 8)
-            .map(|n| {
-                s.push(n);
-            })
-            .collect();
-        assert_eq!(s.len(), 1 << 8);
-    }
-
-    #[test]
-    fn write_zst() {
-        let s: Stele<()> = Stele::new();
-        let _: () = (0..256).map(|_| s.push(())).collect();
-    }
-
-    #[test]
-    fn getcopy() {
-        let s: Stele<u8> = Stele::new();
-        s.push(0);
-        assert_eq!(s.get(0), 0);
-    }
-}
+mod test;
