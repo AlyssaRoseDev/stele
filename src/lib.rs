@@ -127,7 +127,7 @@ pub struct Stele<T: Debug, A: Allocator = Global> {
 impl<T: Debug> Stele<T> {
     pub fn new() -> Self {
         Self {
-            inners : [(); WORD_SIZE].map(|_|crate::sync::AtomicPtr::new(null_mut())),
+            inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
             cap: AtomicUsize::new(0),
             allocator: Global,
         }
@@ -137,7 +137,7 @@ impl<T: Debug> Stele<T> {
 impl<T: Debug, A: Allocator> Stele<T, A> {
     pub fn new_in(allocator: A) -> Self {
         Self {
-            inners : [(); WORD_SIZE].map(|_|crate::sync::AtomicPtr::new(null_mut())),
+            inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
             cap: AtomicUsize::new(0),
             allocator,
         }
@@ -251,7 +251,7 @@ impl<T: Debug, A: Allocator> Drop for Stele<T, A> {
         #[cfg(not(loom))]
         let size = *self.cap.get_mut();
         #[cfg(loom)]
-        let size = unsafe {self.cap.unsync_load()};
+        let size = unsafe { self.cap.unsync_load() };
         #[cfg(not(loom))]
         let num_inners = WORD_SIZE - size.leading_zeros() as usize;
         #[cfg(loom)]

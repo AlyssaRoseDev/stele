@@ -8,6 +8,6 @@ edition = "2021"
 [target.'cfg(loom)'.dependencies]
 loom = "0.5.0"
 
-#[profile.release]
-#lto = true
-#codegen-units = 1
+[profile.release]
+lto = true
+codegen-units = 1
