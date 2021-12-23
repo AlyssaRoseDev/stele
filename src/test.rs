@@ -28,13 +28,37 @@ fn getcopy() {
 #[test]
 #[cfg(loom)]
 fn loom() {
+    use loom::thread;
+    use loom::sync::Arc;
+
     loom::model(|| {
         let s: Stele<usize> = Stele::new();
-        let _: () = (0..8)
+        let handle = Arc::new(s);
+        let h1 = Arc::clone(&handle);
+        let h2 = Arc::clone(&handle);
+        let h3 = Arc::clone(&handle);
+        let t1 = thread::spawn(move || {
+        let _: () = (0..4)
             .map(|n| {
-                s.push(n);
+                h1.push(n);
             })
             .collect();
-        assert_eq!(s.len(), 8);
+        });
+        let t2 = thread::spawn(move || {
+        let _: () = (0..4)
+            .map(|n| {
+                h2.push(n);
+            })
+            .collect();
+        });
+        let t3 = thread::spawn(move || {
+            for i in &*h3 {
+                let _ = i;
+            }
+        });
+        t1.join().unwrap();
+        t2.join().unwrap();
+        t3.join().unwrap();
+        assert_eq!(handle.len(), 8);
     })
 }

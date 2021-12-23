@@ -1,21 +1,22 @@
 use super::*;
 
-pub struct SteleLiveIter<'a, T: Debug> {
-    handle: &'a Stele<T>,
+pub struct SteleLiveIter<'a, T: Debug, A: 'static + Allocator> {
+    handle: &'a Stele<T, A>,
     pos: usize,
+    len: usize
 }
 
-impl<'a, T: Debug> SteleLiveIter<'a, T> {
-    pub fn new(handle: &'a Stele<T>) -> Self {
-        SteleLiveIter { handle, pos: 0 }
+impl<'a, T: Debug, A: Allocator> SteleLiveIter<'a, T, A> {
+    pub fn new(handle: &'a Stele<T, A>) -> Self {
+        SteleLiveIter { handle, pos: 0, len: handle.len()}
     }
 }
 
-impl<'a, T: Debug> Iterator for SteleLiveIter<'a, T> {
+impl<'a, T: Debug, A: Allocator> Iterator for SteleLiveIter<'a, T, A> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.handle.len() > self.pos {
+        if self.len > self.pos {
             let ret = self.handle.read(self.pos);
             self.pos += 1;
             Some(ret)

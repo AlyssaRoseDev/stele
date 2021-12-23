@@ -1,13 +1,6 @@
-#![allow(dead_code)]
 #![deny(unsafe_op_in_unsafe_fn)]
-//#![warn(missing_docs)]
-#![feature(
-    maybe_uninit_uninit_array,
-    maybe_uninit_extra,
-    allocator_api,
-    slice_ptr_get,
-    inline_const
-)]
+#![warn(missing_docs)]
+#![feature(maybe_uninit_extra, allocator_api, slice_ptr_get)]
 
 //! Stele: A Send/Sync Append only data structure
 
@@ -21,6 +14,8 @@ use std::{
     ptr::{null_mut, NonNull},
     sync::atomic::Ordering,
 };
+
+use iter::SteleLiveIter;
 
 use crate::sync::*;
 
@@ -57,7 +52,7 @@ pub(crate) unsafe fn dealloc_inner<T, A: Allocator>(
         unsafe {
             allocator.deallocate(
                 NonNull::new_unchecked(ptr as *mut _),
-                Layout::array::<T>(len).unwrap(),
+                Layout::array::<T>(len).unwrap()
             )
         }
     }
@@ -75,7 +70,7 @@ impl<T> Inner<T> {
     }
 
     pub(crate) fn read(&self) -> &T {
-        unsafe { self.raw.assume_init_ref().get().as_ref().unwrap() }
+        unsafe { &*self.raw.assume_init_ref().get() }
     }
 }
 
@@ -117,25 +112,47 @@ const fn max_len(n: usize) -> usize {
         _ => 1 << (n - 1),
     }
 }
+
+/// A Stele is an atomic Vec-like structure meant for read heavy workloads
+/// 
+/// It works in the following ways:
+/// 
+/// - Once added, you can only retrieve values by reference unless the are [`Copy`]
+/// 
+/// - Allocation proceeds in power of two steps, as with Vec
+/// 
+/// - Values are stored in discontinuous [`AtomicPtr`]s, so you cannot
+///   use SliceIndex as it may cross a pointer boundary
 #[derive(Debug)]
-pub struct Stele<T: Debug, A: Allocator = Global> {
+pub struct Stele<T: Debug, A: 'static + Allocator = Global> {
     inners: [AtomicPtr<Inner<T>>; WORD_SIZE],
     cap: AtomicUsize,
-    allocator: A,
+    allocator: &'static A,
 }
 
+unsafe impl<T: Debug, A: Allocator> Send for Stele<T, A> where T: Send {}
+unsafe impl<T: Debug, A: Allocator> Sync for Stele<T, A> where T: Sync {}
+
 impl<T: Debug> Stele<T> {
+    /// Creates a new [`Stele<T>`].
+    ///
+    /// This Stele will start with no allocations and
+    /// will only allocate on the first call to append
     pub fn new() -> Self {
         Self {
             inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
             cap: AtomicUsize::new(0),
-            allocator: Global,
+            allocator: &Global,
         }
     }
 }
 
 impl<T: Debug, A: Allocator> Stele<T, A> {
-    pub fn new_in(allocator: A) -> Self {
+    /// Creates a new [`Stele<T>`] that uses the given allocator.
+    /// 
+    /// As with [`Self::new()`], this does not allocate until the first call to append.
+    ///
+    pub fn new_in(allocator: &'static A) -> Self {
         Self {
             inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
             cap: AtomicUsize::new(0),
@@ -148,68 +165,117 @@ impl<T: Debug, A: Allocator> Stele<T, A> {
         unsafe { self.inners[oidx].load(Ordering::Relaxed).add(iidx) }
     }
 
+    /// Reads the value at the given index.
+    /// 
+    /// This is also the backing function for the Index trait.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use stele::Stele;
+    ///
+    /// let stele: Stele<u8> = (0..9).collect();
+    /// assert_eq!(stele.read(0), &0u8);
+    /// assert_eq!(stele.read(4), &4u8);
+    /// assert_eq!(stele[7], 7u8);
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if you pass an out of bounds index.
     pub fn read(&self, idx: usize) -> &T {
-        assert!(self.cap.load(Ordering::Acquire) > idx);
-        unsafe { self.read_raw(idx).as_ref().unwrap().read() }
+        debug_assert!(self.cap.load(Ordering::Acquire) > idx);
+        unsafe { (*self.read_raw(idx)).read() }
     }
 
+    /// A version of read that returns an Option in case of out of bounds errors.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use stele::Stele;
+    ///
+    /// let stele: Stele<u8> = Stele::new();
+    /// stele.push(0u8);
+    /// assert_eq!(stele.try_read(0), Some(&0u8));
+    /// assert!(stele.try_read(1).is_none())
+    /// ```
     pub fn try_read(&self, idx: usize) -> Option<&T> {
-        if self.cap.load(Ordering::Acquire) < idx {
-            None
-        } else {
-            //SAFETY: The if block ensures that this value exists and is initialized
-            unsafe { Some(self.read_raw(idx).as_ref().unwrap().read()) }
-        }
+        //SAFETY: Null pointers return None from Option::as_ref()
+        unsafe { Some(self.read_raw(idx).as_ref()?.read()) }
     }
 
+    /// Pushes a value to the end of the Stele.
+    /// This allocates a new block if necessary to
+    /// accommodate the new item. These allocations
+    /// happen in power of two increments so as the
+    /// Stele grows allocations will become infrequent
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use stele::Stele;
+    ///
+    /// let stele: Stele<u8> = Stele::new();
+    /// stele.push(0u8);
+    /// assert!(stele[0] == 0)
+    /// ```
     pub fn push(&self, val: T) {
         let idx = self.cap.fetch_add(1, Ordering::AcqRel);
         let (oidx, iidx) = split_idx(idx);
         //SAFETY: Allocating new blocks
         unsafe {
             if idx.is_power_of_two() || idx == 0 || idx == 1 {
-                self.inners[oidx]
-                    .compare_exchange(
-                        null_mut(),
-                        alloc_inner(&self.allocator, max_len(oidx)),
-                        Ordering::AcqRel,
-                        Ordering::Relaxed,
-                    )
-                    .unwrap();
-                *self.inners[oidx].load(Ordering::Acquire) = Inner::init(val)
-            } else {
-                *self.inners[oidx].load(Ordering::Acquire).add(iidx) = Inner::init(val)
+                self.allocate(oidx, max_len(oidx));
             }
-            fence(Ordering::Release)
+            *self.inners[oidx].load(Ordering::Acquire).add(iidx) = Inner::init(val);
+            fence(Ordering::Release);
         }
     }
 
+    /// Returns the current length of the Stele.
+    /// 
+    /// Note that this is an optimistic assumption, and may be
+    /// in the process of changing by the time this value is used.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use stele::Stele;
+    ///
+    /// let stele: Stele<u8> = (0..10).collect::<_>();
+    /// assert_eq!(stele.len(), 10);
+    /// ```
     pub fn len(&self) -> usize {
         self.cap.load(Ordering::Acquire)
     }
 
+    /// Returns true if the Stele is empty, and false otherwise.
+    /// 
+    /// Note that this is an optimistic assumption, and may be
+    /// in the process of changing by the time this value is used.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use stele::Stele;
+    ///
+    /// let stele: Stele<()> = Stele::new();
+    /// assert_eq!(stele.is_empty(), true);
+    /// ```
     pub fn is_empty(&self) -> bool {
-        self.len() > 0
+        self.len() == 0
     }
 
-    pub fn is_full(&self) -> bool {
-        false
-    }
-
-    fn allocate(&self) {
-        let cap = self.cap.load(Ordering::Acquire);
-        #[cfg(not(loom))]
-        let idx = WORD_SIZE - cap.leading_zeros() as usize;
-        #[cfg(loom)]
-        let idx = WORD_SIZE - (cap.leading_zeros() as usize - SHIFT_OFFSET);
+    fn allocate(&self, idx: usize, len: usize) {
         self.inners[idx]
             .compare_exchange(
                 null_mut(),
-                unsafe { crate::alloc_inner(&self.allocator, (1 << idx) - 1) },
+                unsafe { alloc_inner(&self.allocator, len) },
                 Ordering::AcqRel,
                 Ordering::Relaxed,
             )
-            .unwrap();
+            .expect("The pointer is null because we have just incremented the cap to the head of this pointer");
     }
 }
 impl<T: Debug> Default for Stele<T> {
@@ -222,7 +288,7 @@ impl<T: Debug + Copy, A: Allocator> Stele<T, A> {
     /// Get provides a way to get an owned copy of a value inside a Stele
     /// provided the T implements copy
     pub fn get(&self, idx: usize) -> T {
-        assert!(self.cap.load(Ordering::Acquire) > idx);
+        debug_assert!(self.cap.load(Ordering::Acquire) > idx);
         unsafe { (*self.read_raw(idx)).get() }
     }
 }
@@ -235,6 +301,16 @@ impl<T: Debug> FromIterator<T> for Stele<T> {
             s.push(elem)
         }
         s
+    }
+}
+
+impl<'a, T: Debug, A: Allocator> IntoIterator for &'a Stele<T, A> {
+    type Item = &'a T;
+
+    type IntoIter = crate::iter::SteleLiveIter<'a, T, A>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        SteleLiveIter::new(self)
     }
 }
 
