@@ -31,11 +31,12 @@ fn loom() {
     use loom::thread;
 
     loom::model(|| {
+        let size = 6;
         let (wh, rh1) = Stele::new();
         let rh2 = rh1.clone();
         let rh = rh1.clone();
         let t1 = thread::spawn(move || {
-        let _: () = (0..8)
+        let _: () = (0..size)
             .map(|n| {
                 wh.push(n);
             })
@@ -54,6 +55,6 @@ fn loom() {
         t1.join().unwrap();
         t2.join().unwrap();
         t3.join().unwrap();
-        assert_eq!(rh.len(), 8);
+        assert_eq!(rh.len(), size);
     })
 }
