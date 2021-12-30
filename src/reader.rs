@@ -1,5 +1,13 @@
-use std::{sync::atomic::Ordering, ops::{Deref, Index}, alloc::{Allocator, Global}};
-use crate::{Stele, iter::{SteleLiveIter, CopyIter}, sync::Arc};
+use crate::{
+    iter::{CopyIter, SteleLiveIter},
+    sync::Arc,
+    Stele,
+};
+use std::{
+    alloc::{Allocator, Global},
+    ops::{Deref, Index},
+    sync::atomic::Ordering,
+};
 
 pub struct ReadHandle<T, A: 'static + Allocator = Global> {
     pub(crate) handle: Arc<Stele<T, A>>,
@@ -36,7 +44,9 @@ impl<T, A: 'static + Allocator> Deref for ReadHandle<T, A> {
 
 impl<T, A: 'static + Allocator> Clone for ReadHandle<T, A> {
     fn clone(&self) -> Self {
-        Self { handle: Arc::clone(&self.handle) }
+        Self {
+            handle: Arc::clone(&self.handle),
+        }
     }
 }
 

@@ -1,15 +1,21 @@
-use std::{alloc::{Allocator, Global}, sync::atomic::Ordering};
+use std::{
+    alloc::{Allocator, Global},
+    sync::atomic::Ordering, 
+};
 
-use crate::{Stele, split_idx, max_len, ReadHandle, sync::Arc};
-
+use crate::{max_len, split_idx, sync::Arc, ReadHandle, Stele};
 
 pub struct WriteHandle<T, A: 'static + Allocator = Global> {
-    pub(crate) handle: Arc<Stele<T, A>>
+    pub(crate) handle: Arc<Stele<T, A>>,
 }
 
+unsafe impl<T, A: 'static + Allocator> Send for WriteHandle<T, A> where T: Send + Sync {}
+impl<T, A: 'static + Allocator> !Sync for WriteHandle<T, A> {}
+
 impl<T, A: 'static + Allocator> WriteHandle<T, A> {
+
     pub fn push(&self, val: T) {
-        let idx = self.cap.load(Ordering::Acquire) + 1;
+        let idx = self.cap.load(Ordering::Acquire);
         let (oidx, iidx) = split_idx(idx);
         //SAFETY: Allocating new blocks
         unsafe {
@@ -18,12 +24,12 @@ impl<T, A: 'static + Allocator> WriteHandle<T, A> {
             }
             *self.inners[oidx].load(Ordering::Acquire).add(iidx) = crate::Inner::init(val);
         }
-        self.cap.store(idx, Ordering::Release);
+        self.cap.store(idx + 1, Ordering::Release);
     }
 
     pub fn get_read_handle(&self) -> ReadHandle<T, A> {
         ReadHandle {
-            handle: Arc::clone(&self.handle)
+            handle: Arc::clone(&self.handle),
         }
     }
 }
@@ -35,4 +41,3 @@ impl<T, A: 'static + Allocator> std::ops::Deref for WriteHandle<T, A> {
         &*self.handle
     }
 }
-

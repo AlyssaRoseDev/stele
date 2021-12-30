@@ -1,15 +1,18 @@
-
 use super::*;
 
 pub struct SteleLiveIter<'a, T, A: 'static + Allocator = Global> {
     handle: &'a ReadHandle<T, A>,
     pos: usize,
-    len: usize
+    len: usize,
 }
 
 impl<'a, T, A: Allocator> SteleLiveIter<'a, T, A> {
     pub fn new(handle: &'a ReadHandle<T, A>) -> Self {
-        SteleLiveIter { handle, pos: 0, len: handle.len()}
+        SteleLiveIter {
+            handle,
+            pos: 0,
+            len: handle.len(),
+        }
     }
 }
 

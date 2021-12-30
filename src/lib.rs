@@ -1,28 +1,27 @@
 #![deny(unsafe_op_in_unsafe_fn)]
-//#![warn(missing_docs)]
-#![feature(maybe_uninit_extra, allocator_api, slice_ptr_get)]
+// #![warn(missing_docs)]
+#![feature(maybe_uninit_extra, allocator_api, slice_ptr_get, let_else, negative_impls)]
 
 //! Stele: A Send/Sync Append only data structure
 
 use std::{
-    alloc::{Allocator, Global, Layout},
+    alloc::{handle_alloc_error, Allocator, Global, Layout},
     cell::UnsafeCell,
     fmt::Debug,
     mem::MaybeUninit,
     ptr::{null_mut, NonNull},
-    sync::{atomic::Ordering},
+    sync::atomic::Ordering,
 };
-
 
 use crate::sync::*;
 
-mod reader;
-mod writer;
 mod iter;
+mod reader;
 mod sync;
+mod writer;
 
-pub use writer::WriteHandle;
 pub use reader::ReadHandle;
+pub use writer::WriteHandle;
 
 #[cfg(not(loom))]
 const WORD_SIZE: usize = usize::BITS as usize;
@@ -31,32 +30,38 @@ const WORD_SIZE: usize = 8;
 #[cfg(loom)]
 const SHIFT_OFFSET: usize = 64 - 8;
 
+/// # Safety
+/// alloc_inner must be called with a length no more than
+/// one half [`usize::MAX`] or 1 << ([`usize::BITS`] - 1)
 pub(crate) unsafe fn alloc_inner<T, A: Allocator>(
     allocator: &A,
     len: usize,
 ) -> *mut crate::Inner<T> {
+    debug_assert!(len < usize::MAX >> 1);
     if core::mem::size_of::<T>() == 0 {
         NonNull::dangling().as_ptr()
     } else {
-        allocator
-            .allocate(Layout::array::<T>(len).unwrap())
-            .unwrap()
-            .as_mut_ptr() as *mut _
+        let layout = Layout::array::<T>(len)
+            .expect("Len is constrained by the safety contract of alloc_inner()!");
+        let Ok(ptr) = allocator.allocate(layout) else {handle_alloc_error(layout)};
+        ptr.as_mut_ptr() as *mut _
     }
 }
 
+/// # Safety
+/// dealloc_inner must be called with a length no more than
+/// one half [`usize::MAX`] or 1 << ([`usize::BITS`] - 1)
 pub(crate) unsafe fn dealloc_inner<T, A: Allocator>(
     allocator: &A,
     ptr: *mut crate::Inner<T>,
     len: usize,
 ) {
+    debug_assert!(len < usize::MAX >> 1);
     if core::mem::size_of::<T>() != 0 {
-        unsafe {
-            allocator.deallocate(
-                NonNull::new_unchecked(ptr as *mut _),
-                Layout::array::<T>(len).unwrap()
-            )
-        }
+        let Some(ptr) = NonNull::new(ptr as *mut u8) else {return;};
+        let layout = Layout::array::<T>(len)
+            .expect("Len is constrained by the safety contract of dealloc_inner()!");
+        unsafe { allocator.deallocate(ptr, layout) }
     }
 }
 
@@ -115,16 +120,6 @@ const fn max_len(n: usize) -> usize {
     }
 }
 
-/// A Stele is an atomic Vec-like structure meant for read heavy workloads
-/// 
-/// It works in the following ways:
-/// 
-/// - Once added, you can only retrieve values by reference unless the are [`Copy`]
-/// 
-/// - Allocation proceeds in power of two steps, as with Vec
-/// 
-/// - Values are stored in discontinuous [`AtomicPtr`]s, so you cannot
-///   use SliceIndex as it may cross a pointer boundary
 #[derive(Debug)]
 pub struct Stele<T, A: 'static + Allocator = Global> {
     inners: [AtomicPtr<Inner<T>>; WORD_SIZE],
@@ -136,74 +131,42 @@ unsafe impl<T, A: Allocator> Send for Stele<T, A> where T: Send {}
 unsafe impl<T, A: Allocator> Sync for Stele<T, A> where T: Sync {}
 
 impl<T> Stele<T> {
-    /// Creates a new [`Stele<T>`].
-    ///
-    /// This Stele will start with no allocations and
-    /// will only allocate on the first call to append
     #[allow(clippy::new_ret_no_self)]
-    pub fn new() -> (WriteHandle<T>, ReadHandle<T>){
-        let h = WriteHandle {handle: Arc::new(Self {
-            inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
-            cap: AtomicUsize::new(0),
-            allocator: &Global,
-        })};
+    pub fn new() -> (WriteHandle<T>, ReadHandle<T>) {
+        let h = WriteHandle {
+            handle: Arc::new(Self {
+                inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
+                cap: AtomicUsize::new(0),
+                allocator: &Global,
+            }),
+        };
         let r = h.get_read_handle();
         (h, r)
-
     }
 }
 
 impl<T, A: Allocator> Stele<T, A> {
-    /// Creates a new [`Stele<T>`] that uses the given allocator.
-    /// 
-    /// As with [`Self::new()`], this does not allocate until the first call to append.
-    ///
-    pub fn new_in(allocator: &'static A) -> (WriteHandle<T, A>, ReadHandle<T, A>){
-        let h = WriteHandle {handle: Arc::new(Self {
-            inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
-            cap: AtomicUsize::new(0),
-            allocator,
-        })};
+    pub fn new_in(allocator: &'static A) -> (WriteHandle<T, A>, ReadHandle<T, A>) {
+        let h = WriteHandle {
+            handle: Arc::new(Self {
+                inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
+                cap: AtomicUsize::new(0),
+                allocator,
+            }),
+        };
         let r = h.get_read_handle();
         (h, r)
-
     }
 
     unsafe fn read_raw(&self, idx: usize) -> *mut Inner<T> {
         let (oidx, iidx) = split_idx(idx);
-        unsafe { self.inners[oidx].load(Ordering::Relaxed).add(iidx) }
+        unsafe { self.inners[oidx].load(Ordering::Acquire).add(iidx) }
     }
 
-    /// Returns the current length of the Stele.
-    /// 
-    /// Note that this is an optimistic assumption, and may be
-    /// in the process of changing by the time this value is used.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use stele::Stele;
-    ///
-    /// let stele: Stele<u8> = (0..10).collect::<_>();
-    /// assert_eq!(stele.len(), 10);
-    /// ```
     pub fn len(&self) -> usize {
         self.cap.load(Ordering::Acquire)
     }
 
-    /// Returns true if the Stele is empty, and false otherwise.
-    /// 
-    /// Note that this is an optimistic assumption, and may be
-    /// in the process of changing by the time this value is used.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use stele::Stele;
-    ///
-    /// let stele: Stele<()> = Stele::new();
-    /// assert_eq!(stele.is_empty(), true);
-    /// ```
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
