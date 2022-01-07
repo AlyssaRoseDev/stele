@@ -1,6 +1,6 @@
 use std::{
     alloc::{Allocator, Global},
-    sync::atomic::Ordering, 
+    sync::atomic::Ordering,
 };
 
 use crate::{max_len, split_idx, sync::Arc, ReadHandle, Stele};
@@ -13,7 +13,6 @@ unsafe impl<'a, T, A: Allocator> Send for WriteHandle<'a, T, A> where T: Send + 
 impl<'a, T, A: Allocator> !Sync for WriteHandle<'a, T, A> {}
 
 impl<'a, T, A: Allocator> WriteHandle<'a, T, A> {
-
     pub fn push(&self, val: T) {
         let idx = self.cap.load(Ordering::Acquire);
         let (oidx, iidx) = split_idx(idx);

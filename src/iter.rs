@@ -1,12 +1,18 @@
 use super::*;
 
-pub struct SteleLiveIter<'a, 's, T, A: Allocator = Global> where 's: 'a{
+pub struct SteleLiveIter<'a, 's, T, A: Allocator = Global>
+where
+    's: 'a,
+{
     handle: &'a ReadHandle<'s, T, A>,
     pos: usize,
     len: usize,
 }
 
-impl<'a, 's, T, A: Allocator> SteleLiveIter<'a, 's, T, A> where 's: 'a{
+impl<'a, 's, T, A: Allocator> SteleLiveIter<'a, 's, T, A>
+where
+    's: 'a,
+{
     pub fn new(handle: &'a ReadHandle<'s, T, A>) -> Self {
         SteleLiveIter {
             handle,
@@ -16,7 +22,10 @@ impl<'a, 's, T, A: Allocator> SteleLiveIter<'a, 's, T, A> where 's: 'a{
     }
 }
 
-impl<'a, 's, T, A: Allocator> Iterator for SteleLiveIter<'a, 's, T, A> where 's: 'a{
+impl<'a, 's, T, A: Allocator> Iterator for SteleLiveIter<'a, 's, T, A>
+where
+    's: 'a,
+{
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {

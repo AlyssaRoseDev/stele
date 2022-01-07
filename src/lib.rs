@@ -1,6 +1,12 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 // #![warn(missing_docs)]
-#![feature(maybe_uninit_extra, allocator_api, slice_ptr_get, let_else, negative_impls)]
+#![feature(
+    maybe_uninit_extra,
+    allocator_api,
+    slice_ptr_get,
+    let_else,
+    negative_impls
+)]
 
 //! Stele: A Send/Sync Append only data structure
 
@@ -9,7 +15,8 @@ use std::{
     cell::UnsafeCell,
     fmt::Debug,
     mem::MaybeUninit,
-    ptr::{null_mut, NonNull}, sync::atomic::Ordering,
+    ptr::{null_mut, NonNull},
+    sync::atomic::Ordering,
 };
 
 use crate::sync::*;
@@ -126,37 +133,36 @@ pub struct Stele<'a, T, A: Allocator = Global> {
     allocator: &'a A,
 }
 
-unsafe impl<'a, T, A: Allocator> Send for Stele<'a, T, A> where T: Send{}
-unsafe impl<'a, T, A: Allocator> Sync for Stele<'a, T, A> where T: Sync{}
+unsafe impl<'a, T, A: Allocator> Send for Stele<'a, T, A> where T: Send {}
+unsafe impl<'a, T, A: Allocator> Sync for Stele<'a, T, A> where T: Sync {}
 
 impl<'a, T> Stele<'a, T> {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> (WriteHandle<'a, T>, ReadHandle<'a, T>) {
-        let s = Arc::new(
-            Self {
-                inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
-                cap: AtomicUsize::new(0),
-                allocator: &Global,
-            });
+        let s = Arc::new(Self {
+            inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
+            cap: AtomicUsize::new(0),
+            allocator: &Global,
+        });
         let h = WriteHandle {
             handle: Arc::clone(&s),
         };
-        let r = ReadHandle {handle: s};
+        let r = ReadHandle { handle: s };
         (h, r)
     }
-
 }
 
 impl<'a, T, A: Allocator> Stele<'a, T, A> {
     pub fn new_in(allocator: &'a A) -> (WriteHandle<'a, T, A>, ReadHandle<'a, T, A>) {
-        let s = 
-            Arc::new(Self {
-                inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
-                cap: AtomicUsize::new(0),
-                allocator,
-            });
-        let h = WriteHandle {handle: Arc::clone(&s)};
-        let r = ReadHandle{handle: s};
+        let s = Arc::new(Self {
+            inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
+            cap: AtomicUsize::new(0),
+            allocator,
+        });
+        let h = WriteHandle {
+            handle: Arc::clone(&s),
+        };
+        let r = ReadHandle { handle: s };
         (h, r)
     }
 
@@ -165,7 +171,7 @@ impl<'a, T, A: Allocator> Stele<'a, T, A> {
         let h = WriteHandle {
             handle: Arc::clone(&s),
         };
-        let r = ReadHandle{handle: s};
+        let r = ReadHandle { handle: s };
         (h, r)
     }
 
@@ -196,7 +202,7 @@ impl<'a, T, A: Allocator> Stele<'a, T, A> {
 impl<'a, T> FromIterator<T> for Stele<'a, T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let s = Stele {
-            inners: [(); WORD_SIZE].map(|_| {AtomicPtr::new(null_mut())}),
+            inners: [(); WORD_SIZE].map(|_| AtomicPtr::new(null_mut())),
             cap: AtomicUsize::new(0),
             allocator: &Global,
         };

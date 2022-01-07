@@ -13,7 +13,9 @@ fn write_test() {
 #[test]
 fn write_zst() {
     let (wh, rh) = Stele::new();
-    for _ in 0..256 {wh.push(())}
+    for _ in 0..256 {
+        wh.push(())
+    }
     assert_eq!(rh.len(), 256)
 }
 
