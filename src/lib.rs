@@ -9,8 +9,7 @@ use std::{
     cell::UnsafeCell,
     fmt::Debug,
     mem::MaybeUninit,
-    ptr::{null_mut, NonNull},
-    sync::atomic::Ordering,
+    ptr::{null_mut, NonNull}, sync::atomic::Ordering,
 };
 
 use crate::sync::*;
@@ -76,7 +75,7 @@ impl<T> Inner<T> {
         Self { raw: init }
     }
 
-    pub(crate) fn read(&self) -> &T {
+    pub(crate) unsafe fn read(&self) -> &T {
         unsafe { &*self.raw.assume_init_ref().get() }
     }
 }
@@ -85,7 +84,7 @@ impl<T> Inner<T>
 where
     T: Copy,
 {
-    pub(crate) fn get(&self) -> T {
+    pub(crate) unsafe fn get(&self) -> T {
         unsafe { *self.raw.assume_init_ref().get() }
     }
 }
@@ -121,61 +120,72 @@ const fn max_len(n: usize) -> usize {
 }
 
 #[derive(Debug)]
-pub struct Stele<T, A: 'static + Allocator = Global> {
+pub struct Stele<'a, T, A: Allocator = Global> {
     inners: [AtomicPtr<Inner<T>>; WORD_SIZE],
     cap: AtomicUsize,
-    allocator: &'static A,
+    allocator: &'a A,
 }
 
-unsafe impl<T, A: Allocator> Send for Stele<T, A> where T: Send {}
-unsafe impl<T, A: Allocator> Sync for Stele<T, A> where T: Sync {}
+unsafe impl<'a, T, A: Allocator> Send for Stele<'a, T, A> where T: Send{}
+unsafe impl<'a, T, A: Allocator> Sync for Stele<'a, T, A> where T: Sync{}
 
-impl<T> Stele<T> {
+impl<'a, T> Stele<'a, T> {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new() -> (WriteHandle<T>, ReadHandle<T>) {
-        let h = WriteHandle {
-            handle: Arc::new(Self {
+    pub fn new() -> (WriteHandle<'a, T>, ReadHandle<'a, T>) {
+        let s = Arc::new(
+            Self {
                 inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
                 cap: AtomicUsize::new(0),
                 allocator: &Global,
-            }),
+            });
+        let h = WriteHandle {
+            handle: Arc::clone(&s),
         };
-        let r = h.get_read_handle();
+        let r = ReadHandle {handle: s};
         (h, r)
     }
+
 }
 
-impl<T, A: Allocator> Stele<T, A> {
-    pub fn new_in(allocator: &'static A) -> (WriteHandle<T, A>, ReadHandle<T, A>) {
-        let h = WriteHandle {
-            handle: Arc::new(Self {
+impl<'a, T, A: Allocator> Stele<'a, T, A> {
+    pub fn new_in(allocator: &'a A) -> (WriteHandle<'a, T, A>, ReadHandle<'a, T, A>) {
+        let s = 
+            Arc::new(Self {
                 inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
                 cap: AtomicUsize::new(0),
                 allocator,
-            }),
-        };
-        let r = h.get_read_handle();
+            });
+        let h = WriteHandle {handle: Arc::clone(&s)};
+        let r = ReadHandle{handle: s};
         (h, r)
     }
 
-    unsafe fn read_raw(&self, idx: usize) -> *mut Inner<T> {
+    pub fn to_handles(self) -> (WriteHandle<'a, T, A>, ReadHandle<'a, T, A>) {
+        let s = Arc::new(self);
+        let h = WriteHandle {
+            handle: Arc::clone(&s),
+        };
+        let r = ReadHandle{handle: s};
+        (h, r)
+    }
+
+    fn push(&self, val: T) {
+        let idx = self.cap.load(Ordering::Acquire);
         let (oidx, iidx) = split_idx(idx);
-        unsafe { self.inners[oidx].load(Ordering::Acquire).add(iidx) }
-    }
-
-    pub fn len(&self) -> usize {
-        self.cap.load(Ordering::Acquire)
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        unsafe {
+            if idx.is_power_of_two() || idx == 0 || idx == 1 {
+                self.allocate(oidx, max_len(oidx));
+            }
+            *self.inners[oidx].load(Ordering::Acquire).add(iidx) = crate::Inner::init(val);
+        }
+        self.cap.store(idx + 1, Ordering::Release);
     }
 
     fn allocate(&self, idx: usize, len: usize) {
         self.inners[idx]
             .compare_exchange(
-                null_mut(),
-                unsafe { alloc_inner(&self.allocator, len) },
+                std::ptr::null_mut(),
+                unsafe { crate::alloc_inner(&self.allocator, len) },
                 Ordering::AcqRel,
                 Ordering::Relaxed,
             )
@@ -183,7 +193,21 @@ impl<T, A: Allocator> Stele<T, A> {
     }
 }
 
-impl<T, A: Allocator> Drop for Stele<T, A> {
+impl<'a, T> FromIterator<T> for Stele<'a, T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let s = Stele {
+            inners: [(); WORD_SIZE].map(|_| {AtomicPtr::new(null_mut())}),
+            cap: AtomicUsize::new(0),
+            allocator: &Global,
+        };
+        for item in iter {
+            s.push(item);
+        }
+        s
+    }
+}
+
+impl<'a, T, A: Allocator> Drop for Stele<'a, T, A> {
     fn drop(&mut self) {
         #[cfg(not(loom))]
         let size = *self.cap.get_mut();

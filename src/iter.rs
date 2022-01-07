@@ -1,13 +1,13 @@
 use super::*;
 
-pub struct SteleLiveIter<'a, T, A: 'static + Allocator = Global> {
-    handle: &'a ReadHandle<T, A>,
+pub struct SteleLiveIter<'a, 's, T, A: Allocator = Global> where 's: 'a{
+    handle: &'a ReadHandle<'s, T, A>,
     pos: usize,
     len: usize,
 }
 
-impl<'a, T, A: Allocator> SteleLiveIter<'a, T, A> {
-    pub fn new(handle: &'a ReadHandle<T, A>) -> Self {
+impl<'a, 's, T, A: Allocator> SteleLiveIter<'a, 's, T, A> where 's: 'a{
+    pub fn new(handle: &'a ReadHandle<'s, T, A>) -> Self {
         SteleLiveIter {
             handle,
             pos: 0,
@@ -16,7 +16,7 @@ impl<'a, T, A: Allocator> SteleLiveIter<'a, T, A> {
     }
 }
 
-impl<'a, T, A: Allocator> Iterator for SteleLiveIter<'a, T, A> {
+impl<'a, 's, T, A: Allocator> Iterator for SteleLiveIter<'a, 's, T, A> where 's: 'a{
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -30,13 +30,13 @@ impl<'a, T, A: Allocator> Iterator for SteleLiveIter<'a, T, A> {
     }
 }
 
-pub struct CopyIter<T: Copy, A: 'static + Allocator = Global> {
-    handle: ReadHandle<T, A>,
+pub struct CopyIter<'a, T: Copy, A: Allocator = Global> {
+    handle: ReadHandle<'a, T, A>,
     pos: usize,
 }
 
-impl<T: Copy, A: 'static + Allocator> CopyIter<T, A> {
-    pub fn new(handle: ReadHandle<T, A>) -> Self {
+impl<'a, T: Copy, A: Allocator> CopyIter<'a, T, A> {
+    pub fn new(handle: ReadHandle<'a, T, A>) -> Self {
         Self { handle, pos: 0 }
     }
     fn len(&self) -> usize {
@@ -47,7 +47,7 @@ impl<T: Copy, A: 'static + Allocator> CopyIter<T, A> {
     }
 }
 
-impl<T: Copy, A: 'static + Allocator> Iterator for CopyIter<T, A> {
+impl<'a, T: Copy, A: Allocator> Iterator for CopyIter<'a, T, A> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
