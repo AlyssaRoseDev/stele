@@ -1,20 +1,18 @@
-use super::*;
+use std::alloc::Global;
 
-pub struct SteleLiveIter<'a, 's, T, A: Allocator = Global>
-where
-    's: 'a,
+use super::{Allocator, ReadHandle};
+
+pub struct RefIterator<'rh, T, A: Allocator = Global>
 {
-    handle: &'a ReadHandle<'s, T, A>,
+    handle: &'rh ReadHandle<T, A>,
     pos: usize,
     len: usize,
 }
 
-impl<'a, 's, T, A: Allocator> SteleLiveIter<'a, 's, T, A>
-where
-    's: 'a,
+impl<'rh, T, A: Allocator> RefIterator<'rh, T, A>
 {
-    pub fn new(handle: &'a ReadHandle<'s, T, A>) -> Self {
-        SteleLiveIter {
+    pub fn new(handle: &'rh ReadHandle<T, A>) -> Self {
+        RefIterator {
             handle,
             pos: 0,
             len: handle.len(),
@@ -22,11 +20,9 @@ where
     }
 }
 
-impl<'a, 's, T, A: Allocator> Iterator for SteleLiveIter<'a, 's, T, A>
-where
-    's: 'a,
+impl<'rh, T, A: Allocator> Iterator for RefIterator<'rh, T, A>
 {
-    type Item = &'a T;
+    type Item = &'rh T;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.len > self.pos {
@@ -39,13 +35,13 @@ where
     }
 }
 
-pub struct CopyIter<'a, T: Copy, A: Allocator = Global> {
-    handle: ReadHandle<'a, T, A>,
+pub struct CopyIterator<T: Copy, A: Allocator = Global> {
+    handle: ReadHandle<T, A>,
     pos: usize,
 }
 
-impl<'a, T: Copy, A: Allocator> CopyIter<'a, T, A> {
-    pub fn new(handle: ReadHandle<'a, T, A>) -> Self {
+impl<T: Copy, A: Allocator> CopyIterator<T, A> {
+    pub fn new(handle: ReadHandle<T, A>) -> Self {
         Self { handle, pos: 0 }
     }
     fn len(&self) -> usize {
@@ -56,7 +52,7 @@ impl<'a, T: Copy, A: Allocator> CopyIter<'a, T, A> {
     }
 }
 
-impl<'a, T: Copy, A: Allocator> Iterator for CopyIter<'a, T, A> {
+impl<T: Copy, A: Allocator> Iterator for CopyIterator<T, A> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {

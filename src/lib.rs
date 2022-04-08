@@ -1,11 +1,12 @@
-#![deny(unsafe_op_in_unsafe_fn)]
+#![deny(unsafe_op_in_unsafe_fn, clippy::pedantic)]
 // #![warn(missing_docs)]
+#![allow(clippy::must_use_candidate)]
 #![feature(
-    maybe_uninit_extra,
     allocator_api,
     slice_ptr_get,
     let_else,
-    negative_impls
+    negative_impls,
+    strict_provenance
 )]
 
 //! Stele: A Send/Sync Append only data structure
@@ -19,7 +20,7 @@ use std::{
     sync::atomic::Ordering,
 };
 
-use crate::sync::*;
+use crate::sync::{Arc, AtomicPtr, AtomicUsize};
 
 mod iter;
 mod reader;
@@ -37,7 +38,7 @@ const WORD_SIZE: usize = 8;
 const SHIFT_OFFSET: usize = 64 - 8;
 
 /// # Safety
-/// alloc_inner must be called with a length no more than
+/// `alloc_inner` must be called with a length no more than
 /// one half [`usize::MAX`] or 1 << ([`usize::BITS`] - 1)
 pub(crate) unsafe fn alloc_inner<T, A: Allocator>(
     allocator: &A,
@@ -50,12 +51,12 @@ pub(crate) unsafe fn alloc_inner<T, A: Allocator>(
         let layout = Layout::array::<T>(len)
             .expect("Len is constrained by the safety contract of alloc_inner()!");
         let Ok(ptr) = allocator.allocate(layout) else {handle_alloc_error(layout)};
-        ptr.as_mut_ptr() as *mut _
+        ptr.as_mut_ptr().cast()
     }
 }
 
 /// # Safety
-/// dealloc_inner must be called with a length no more than
+/// `dealloc_inner` must be called with a length no more than
 /// one half [`usize::MAX`] or 1 << ([`usize::BITS`] - 1)
 pub(crate) unsafe fn dealloc_inner<T, A: Allocator>(
     allocator: &A,
@@ -64,7 +65,7 @@ pub(crate) unsafe fn dealloc_inner<T, A: Allocator>(
 ) {
     debug_assert!(len < usize::MAX >> 1);
     if core::mem::size_of::<T>() != 0 {
-        let Some(ptr) = NonNull::new(ptr as *mut u8) else {return;};
+        let Some(ptr) = NonNull::new(ptr.cast()) else {return;};
         let layout = Layout::array::<T>(len)
             .expect("Len is constrained by the safety contract of dealloc_inner()!");
         unsafe { allocator.deallocate(ptr, layout) }
@@ -98,24 +99,22 @@ where
 
 #[cfg(not(loom))]
 const fn split_idx(idx: usize) -> (usize, usize) {
-    match idx {
-        0 => (0, 0),
-        _ => {
-            let outer_idx = WORD_SIZE - idx.leading_zeros() as usize;
-            let inner_idx = 1 << (outer_idx - 1);
-            (outer_idx, idx - inner_idx)
-        }
+    if idx == 0 {
+        (0, 0)
+    } else {
+        let outer_idx = WORD_SIZE - idx.leading_zeros() as usize;
+        let inner_idx = 1 << (outer_idx - 1);
+        (outer_idx, idx - inner_idx)
     }
 }
 #[cfg(loom)]
 const fn split_idx(idx: usize) -> (usize, usize) {
-    match idx {
-        0 => (0, 0),
-        _ => {
-            let outer_idx = WORD_SIZE - (idx.leading_zeros() as usize - SHIFT_OFFSET);
-            let inner_idx = 1 << (outer_idx - 1);
-            (outer_idx, idx - inner_idx)
-        }
+    if idx == 0 {
+        (0, 0)
+    } else {
+        let outer_idx = WORD_SIZE - (idx.leading_zeros() as usize - SHIFT_OFFSET);
+        let inner_idx = 1 << (outer_idx - 1);
+        (outer_idx, idx - inner_idx)
     }
 }
 
@@ -127,22 +126,22 @@ const fn max_len(n: usize) -> usize {
 }
 
 #[derive(Debug)]
-pub struct Stele<'a, T, A: Allocator = Global> {
+pub struct Stele<T, A: Allocator = Global> {
     inners: [AtomicPtr<Inner<T>>; WORD_SIZE],
     cap: AtomicUsize,
-    allocator: &'a A,
+    allocator: A,
 }
 
-unsafe impl<'a, T, A: Allocator> Send for Stele<'a, T, A> where T: Send {}
-unsafe impl<'a, T, A: Allocator> Sync for Stele<'a, T, A> where T: Sync {}
+unsafe impl<T, A: Allocator> Send for Stele<T, A> where T: Send {}
+unsafe impl<T, A: Allocator> Sync for Stele<T, A> where T: Sync {}
 
-impl<'a, T> Stele<'a, T> {
+impl<T> Stele<T> {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new() -> (WriteHandle<'a, T>, ReadHandle<'a, T>) {
+    pub fn new() -> (WriteHandle<T>, ReadHandle<T>) {
         let s = Arc::new(Self {
             inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
             cap: AtomicUsize::new(0),
-            allocator: &Global,
+            allocator: Global,
         });
         let h = WriteHandle {
             handle: Arc::clone(&s),
@@ -152,8 +151,8 @@ impl<'a, T> Stele<'a, T> {
     }
 }
 
-impl<'a, T, A: Allocator> Stele<'a, T, A> {
-    pub fn new_in(allocator: &'a A) -> (WriteHandle<'a, T, A>, ReadHandle<'a, T, A>) {
+impl<T, A: Allocator> Stele<T, A> {
+    pub fn new_in(allocator: A) -> (WriteHandle<T, A>, ReadHandle<T, A>) {
         let s = Arc::new(Self {
             inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
             cap: AtomicUsize::new(0),
@@ -166,7 +165,7 @@ impl<'a, T, A: Allocator> Stele<'a, T, A> {
         (h, r)
     }
 
-    pub fn to_handles(self) -> (WriteHandle<'a, T, A>, ReadHandle<'a, T, A>) {
+    pub fn to_handles(self) -> (WriteHandle<T, A>, ReadHandle<T, A>) {
         let s = Arc::new(self);
         let h = WriteHandle {
             handle: Arc::clone(&s),
@@ -177,12 +176,14 @@ impl<'a, T, A: Allocator> Stele<'a, T, A> {
 
     fn push(&self, val: T) {
         let idx = self.cap.load(Ordering::Acquire);
-        let (oidx, iidx) = split_idx(idx);
+        let (outer_idx, inner_idx) = split_idx(idx);
         unsafe {
             if idx.is_power_of_two() || idx == 0 || idx == 1 {
-                self.allocate(oidx, max_len(oidx));
+                self.allocate(outer_idx, max_len(outer_idx));
             }
-            *self.inners[oidx].load(Ordering::Acquire).add(iidx) = crate::Inner::init(val);
+            *self.inners[outer_idx]
+                .load(Ordering::Acquire)
+                .add(inner_idx) = crate::Inner::init(val);
         }
         self.cap.store(idx + 1, Ordering::Release);
     }
@@ -199,12 +200,12 @@ impl<'a, T, A: Allocator> Stele<'a, T, A> {
     }
 }
 
-impl<'a, T> FromIterator<T> for Stele<'a, T> {
+impl<T> FromIterator<T> for Stele<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let s = Stele {
             inners: [(); WORD_SIZE].map(|_| AtomicPtr::new(null_mut())),
             cap: AtomicUsize::new(0),
-            allocator: &Global,
+            allocator: Global,
         };
         for item in iter {
             s.push(item);
@@ -213,7 +214,7 @@ impl<'a, T> FromIterator<T> for Stele<'a, T> {
     }
 }
 
-impl<'a, T, A: Allocator> Drop for Stele<'a, T, A> {
+impl<T, A: Allocator> Drop for Stele<T, A> {
     fn drop(&mut self) {
         #[cfg(not(loom))]
         let size = *self.cap.get_mut();

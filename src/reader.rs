@@ -1,5 +1,5 @@
 use crate::{
-    iter::{CopyIter, SteleLiveIter},
+    iter::{CopyIterator, RefIterator},
     sync::Arc,
     Stele,
 };
@@ -9,15 +9,15 @@ use std::{
     sync::atomic::Ordering,
 };
 
-pub struct ReadHandle<'a, T, A: Allocator = Global> {
-    pub(crate) handle: Arc<Stele<'a, T, A>>,
+pub struct ReadHandle<T, A: Allocator = Global> {
+    pub(crate) handle: Arc<Stele<T, A>>,
 }
 
 #[allow(clippy::non_send_fields_in_send_ty)]
-unsafe impl<'a, T, A: Allocator> Send for ReadHandle<'a, T, A> where Stele<'a, T, A>: Send {}
-unsafe impl<'a, T, A: Allocator> Sync for ReadHandle<'a, T, A> where Stele<'a, T, A>: Sync {}
+unsafe impl<T, A: Allocator> Send for ReadHandle<T, A> where Stele<T, A>: Send {}
+unsafe impl<T, A: Allocator> Sync for ReadHandle<T, A> where Stele<T, A>: Sync {}
 
-impl<'a, T, A: Allocator> ReadHandle<'a, T, A> {
+impl<T, A: Allocator> ReadHandle<T, A> {
     pub fn read(&self, idx: usize) -> &T {
         debug_assert!(self.handle.cap.load(Ordering::Acquire) > idx);
         unsafe { (*self.read_raw(idx)).read() }
@@ -37,12 +37,16 @@ impl<'a, T, A: Allocator> ReadHandle<'a, T, A> {
     }
 
     unsafe fn read_raw(&self, idx: usize) -> *mut crate::Inner<T> {
-        let (oidx, iidx) = crate::split_idx(idx);
-        unsafe { self.inners[oidx].load(Ordering::Acquire).add(iidx) }
+        let (outer_idx, inner_idx) = crate::split_idx(idx);
+        unsafe {
+            self.inners[outer_idx]
+                .load(Ordering::Acquire)
+                .add(inner_idx)
+        }
     }
 }
 
-impl<'a, T: Copy, A: Allocator> ReadHandle<'a, T, A> {
+impl<T: Copy, A: Allocator> ReadHandle<T, A> {
     /// Get provides a way to get an owned copy of a value inside a Stele
     /// provided the T implements copy
     pub fn get(&self, idx: usize) -> T {
@@ -51,15 +55,15 @@ impl<'a, T: Copy, A: Allocator> ReadHandle<'a, T, A> {
     }
 }
 
-impl<'a, T, A: Allocator> Deref for ReadHandle<'a, T, A> {
-    type Target = Stele<'a, T, A>;
+impl<T, A: Allocator> Deref for ReadHandle<T, A> {
+    type Target = Stele<T, A>;
 
     fn deref(&self) -> &Self::Target {
         &*self.handle
     }
 }
 
-impl<'a, T, A: Allocator> Clone for ReadHandle<'a, T, A> {
+impl<T, A: Allocator> Clone for ReadHandle<T, A> {
     fn clone(&self) -> Self {
         Self {
             handle: Arc::clone(&self.handle),
@@ -67,27 +71,27 @@ impl<'a, T, A: Allocator> Clone for ReadHandle<'a, T, A> {
     }
 }
 
-impl<'a, 's, T, A: Allocator> IntoIterator for &'a ReadHandle<'s, T, A> {
+impl<'a, T, A: Allocator> IntoIterator for &'a ReadHandle<T, A> {
     type Item = &'a T;
 
-    type IntoIter = crate::iter::SteleLiveIter<'a, 's, T, A>;
+    type IntoIter = crate::iter::RefIterator<'a, T, A>;
 
     fn into_iter(self) -> Self::IntoIter {
-        SteleLiveIter::new(self)
+        RefIterator::new(self)
     }
 }
 
-impl<'a, T: Copy, A: Allocator> IntoIterator for ReadHandle<'a, T, A> {
+impl<T: Copy, A: Allocator> IntoIterator for ReadHandle<T, A> {
     type Item = T;
 
-    type IntoIter = crate::iter::CopyIter<'a, T, A>;
+    type IntoIter = crate::iter::CopyIterator<T, A>;
 
     fn into_iter(self) -> Self::IntoIter {
-        CopyIter::new(self)
+        CopyIterator::new(self)
     }
 }
 
-impl<'a, T, A: Allocator> Index<usize> for ReadHandle<'a, T, A> {
+impl<T, A: Allocator> Index<usize> for ReadHandle<T, A> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
