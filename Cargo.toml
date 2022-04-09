@@ -1,6 +1,6 @@
 [package]
 name = "stele"
-version = "0.2.0"
+version = "0.2.1"
 description = "An atomic Vec-like structure with no copying on allocation"
 license = "MIT OR Apache-2.0"
 keywords = ["data-structure", "concurrent"]
@@ -9,7 +9,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [target.'cfg(loom)'.dependencies]
-loom = "0.5.0"
+loom = "0.5"
 
 [profile.release]
 lto = true
