@@ -14,7 +14,7 @@ pub struct ReadHandle<T, A: Allocator = Global> {
 }
 
 #[allow(clippy::non_send_fields_in_send_ty)]
-unsafe impl<T, A: Allocator> Send for ReadHandle<T, A> where Stele<T, A>: Send {}
+unsafe impl<T, A: Allocator> Send for ReadHandle<T, A> where Stele<T, A>: Send + Sync {}
 unsafe impl<T, A: Allocator> Sync for ReadHandle<T, A> where Stele<T, A>: Sync {}
 
 impl<T, A: Allocator> ReadHandle<T, A> {

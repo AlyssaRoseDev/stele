@@ -1,5 +1,5 @@
 #![deny(unsafe_op_in_unsafe_fn, clippy::pedantic)]
-// #![warn(missing_docs)]
+#![warn(missing_docs)]
 #![allow(clippy::must_use_candidate)]
 #![feature(
     allocator_api,
@@ -9,6 +9,7 @@
     strict_provenance
 )]
 
+//TODO: Write better docs
 //! Stele: A Send/Sync Append only data structure
 
 use std::{
