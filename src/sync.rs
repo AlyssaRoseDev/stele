@@ -4,7 +4,8 @@ pub use loom::sync::{
     Arc,
 };
 #[cfg(not(loom))]
-pub use std::sync::{
+pub use core::sync::{
     atomic::{fence, AtomicPtr, AtomicUsize},
-    Arc,
 };
+#[cfg(not(loom))]
+pub use alloc::sync::Arc;
