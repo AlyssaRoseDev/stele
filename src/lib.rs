@@ -1,14 +1,14 @@
 #![deny(
     unsafe_op_in_unsafe_fn,
     clippy::pedantic,
-    rustdoc::broken_intra_doc_links
+    rustdoc::broken_intra_doc_links,
+    missing_debug_implementations
 )]
 #![warn(missing_docs)]
 #![allow(clippy::must_use_candidate)]
 #![feature(
     allocator_api,
     slice_ptr_get,
-    let_else,
     negative_impls,
     strict_provenance
 )]

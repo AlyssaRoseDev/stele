@@ -2,6 +2,7 @@ use alloc::alloc::{Global, Allocator};
 
 use super::reader::ReadHandle;
 
+#[derive(Debug)]
 pub struct RefIterator<'rh, T, A: Allocator = Global> {
     handle: &'rh ReadHandle<T, A>,
     pos: usize,
@@ -32,6 +33,7 @@ impl<'rh, T, A: Allocator> Iterator for RefIterator<'rh, T, A> {
     }
 }
 
+#[derive(Debug)]
 pub struct CopyIterator<T: Copy, A: Allocator = Global> {
     handle: ReadHandle<T, A>,
     pos: usize,
