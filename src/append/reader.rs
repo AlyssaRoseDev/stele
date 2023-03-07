@@ -9,6 +9,7 @@ use alloc::alloc::{Allocator, Global};
 use super::Stele;
 
 /// A `ReadHandle` for a [`Stele`]
+#[derive(Debug)]
 pub struct ReadHandle<T, A: Allocator = Global> {
     pub(crate) handle: Arc<Stele<T, A>>,
 }
