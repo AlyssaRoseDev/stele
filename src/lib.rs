@@ -19,8 +19,6 @@ extern crate alloc;
 mod sync;
 mod mem;
 mod append;
-#[cfg(feature = "rw")]
-mod rw;
 
 pub use append::reader::ReadHandle;
 pub use append::writer::WriteHandle;
