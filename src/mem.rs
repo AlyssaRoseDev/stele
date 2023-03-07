@@ -41,7 +41,7 @@ if core::mem::size_of::<T>() == 0 {
     let layout = Layout::array::<T>(len)
         .expect("Len is constrained by the safety contract of alloc_inner()!");
     let Ok(ptr) = allocator.allocate(layout) else {handle_alloc_error(layout)};
-    ptr.as_mut_ptr().cast()
+    ptr.as_ptr().cast()
 }
 }
 

@@ -48,6 +48,7 @@ impl<T, A: Allocator> WriteHandle<T, A> {
     }
 
     /// Creates a new [`ReadHandle`]
+    #[must_use]
     pub fn get_read_handle(&self) -> ReadHandle<T, A> {
         ReadHandle::from(&self.handle)
     }
@@ -57,12 +58,14 @@ impl<T, A: Allocator> WriteHandle<T, A> {
     /// # Panic
     ///
     /// This function panics in debug if the given index is out of bounds
+    #[must_use]
     pub fn read(&self, idx: usize) -> &T {
         self.handle.read(idx)
     }
 
     /// Attempts to read the value at the index and returns [`Some`] if the value exists, and [`None`]
     /// otherwise
+    #[must_use]
     pub fn try_read(&self, idx: usize) -> Option<&T> {
         self.handle.try_read(idx)
     }
@@ -72,6 +75,7 @@ impl<T, A: Allocator> WriteHandle<T, A> {
     /// Note:
     /// By calling this through the [`WriteHandle`], you hold the only handle that can change the
     /// length and therefore this information is accurate until the next call to [`push`](WriteHandle::push)
+    #[must_use]
     pub fn len(&self) -> usize {
         self.handle.len()
     }
@@ -82,6 +86,7 @@ impl<T, A: Allocator> WriteHandle<T, A> {
     /// By calling this through the [`WriteHandle`], you hold the only handle that can change the
     /// length and therefore this information is accurate until the first call to [`push`](WriteHandle::push) if it
     /// returned `true`, and will remain accurate again after that as a [`Stele`] cannot remove elements
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.handle.is_empty()
     }
@@ -94,6 +99,7 @@ impl<T: Copy, A: Allocator> WriteHandle<T, A> {
     /// # Panic
     ///
     /// This function panics in debug if the given index is out of bounds
+    #[must_use]
     pub fn get(&self, idx: usize) -> T {
         self.handle.get(idx)
     }

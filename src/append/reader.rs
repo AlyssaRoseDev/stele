@@ -23,12 +23,14 @@ impl<T, A: Allocator> ReadHandle<T, A> {
     /// # Panic
     ///
     /// This function panics in debug if the given index is out of bounds
+    #[must_use]
     pub fn read(&self, idx: usize) -> &T {
         self.handle.read(idx)
     }
 
     /// Attempts to read the value at the index and returns [`Some`] if the value exists, and [`None`]
     /// otherwise
+    #[must_use]
     pub fn try_read(&self, idx: usize) -> Option<&T> {
         self.handle.try_read(idx)
     }
@@ -36,6 +38,7 @@ impl<T, A: Allocator> ReadHandle<T, A> {
     /// Returns the current length of the underlying [`Stele`]
     ///
     /// Note: this is an optimistic operation and the length may be changing under you
+    #[must_use]
     pub fn len(&self) -> usize {
         self.handle.len()
     }
@@ -44,6 +47,7 @@ impl<T, A: Allocator> ReadHandle<T, A> {
     ///
     /// Note: This is an optimistic operation but if this returns `false` it *cannot* return true
     /// in the future
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.handle.is_empty()
     }
@@ -54,6 +58,7 @@ impl<T: Copy, A: Allocator> ReadHandle<T, A> {
     /// provided the `T` implements [`Copy`]
     ///
     /// This function panics in debug if the given index is out of bounds
+    #[must_use]
     pub fn get(&self, idx: usize) -> T {
         self.handle.get(idx)
     }

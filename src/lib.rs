@@ -5,10 +5,8 @@
     missing_debug_implementations
 )]
 #![warn(missing_docs)]
-#![allow(clippy::must_use_candidate)]
 #![feature(
     allocator_api,
-    slice_ptr_get,
     negative_impls,
     strict_provenance
 )]

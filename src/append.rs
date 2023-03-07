@@ -31,6 +31,7 @@ unsafe impl<T, A: Allocator> Sync for Stele<T, A> where T: Sync {}
 
 impl<T> Stele<T> {
     #[allow(clippy::new_ret_no_self)]
+    #[must_use]
     /// Creates a new Stele returns a [`WriteHandle`] and [`ReadHandle`]
     pub fn new() -> (WriteHandle<T>, ReadHandle<T>) {
         let s = Arc::new(Self {
