@@ -38,10 +38,9 @@ fn loom() {
         let rh = rh1.clone();
         let t1 = thread::spawn(move || {
             let _: () = (0..size)
-                .map(|n| {
+                .for_each(|n| {
                     wh.push(n);
-                })
-                .collect();
+                });
         });
         let t2 = thread::spawn(move || {
             for i in &rh1 {

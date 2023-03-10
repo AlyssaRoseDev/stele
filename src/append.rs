@@ -160,7 +160,7 @@ impl<T, A: Allocator> Drop for Stele<T, A> {
             }
             #[cfg(loom)]
             unsafe {
-                dealloc_inner(
+                crate::mem::dealloc_inner(
                     &self.allocator,
                     self.inners[idx].unsync_load(),
                     max_len(idx),
