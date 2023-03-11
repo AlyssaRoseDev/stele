@@ -24,13 +24,9 @@ pub(crate) use mem::Inner;
 const WORD_SIZE: usize = usize::BITS as usize;
 
 const fn split_idx(idx: usize) -> (usize, usize) {
-    if idx == 0 {
-        (0, 0)
-    } else {
-        let outer_idx = WORD_SIZE - idx.leading_zeros() as usize;
-        let inner_idx = 1 << (outer_idx - 1);
-        (outer_idx, idx - inner_idx)
-    }
+    let outer_idx = WORD_SIZE.saturating_sub(idx.leading_zeros() as usize);
+    let inner_idx = idx.saturating_sub(1 << (outer_idx.saturating_sub(1)));
+    (outer_idx, inner_idx)
 }
 
 const fn max_len(n: usize) -> usize {
@@ -40,4 +36,8 @@ const fn max_len(n: usize) -> usize {
     }
 }
 
+#[cfg(all(not(loom), test))]
 mod test;
+
+#[cfg(all(loom, test))]
+mod loom_test;

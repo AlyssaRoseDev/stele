@@ -8,13 +8,16 @@ pub(crate) struct Inner<T> {
 }
 
 impl<T> Inner<T> {
-    pub(crate) fn init(val: T) -> Self {
+    pub(crate) fn new(val: T) -> Self {
         let init: MaybeUninit<UnsafeCell<T>> = MaybeUninit::new(UnsafeCell::new(val));
         Self { raw: init }
     }
 
     pub(crate) unsafe fn read(&self) -> &T {
-        unsafe { &*self.raw.assume_init_ref().get() }
+        unsafe {
+            self.raw.assume_init_ref().get().as_ref()
+            .expect("`alloc_inner` does not hand out null pointers and the constraints of `Stele::read` requires that the index is inbounds")
+        }
     }
 }
 
