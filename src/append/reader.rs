@@ -1,12 +1,10 @@
+use super::Stele;
 use crate::{
     append::iter::{CopyIterator, RefIterator},
     sync::Arc,
 };
-use core::{
-    ops::Index,
-};
 use alloc::alloc::{Allocator, Global};
-use super::Stele;
+use core::ops::Index;
 
 /// A `ReadHandle` for a [`Stele`]
 #[derive(Debug)]
@@ -102,6 +100,8 @@ impl<T, A: Allocator> Index<usize> for ReadHandle<T, A> {
 
 impl<T, A: Allocator> From<&Arc<Stele<T, A>>> for ReadHandle<T, A> {
     fn from(h: &Arc<Stele<T, A>>) -> Self {
-        Self { handle: Arc::clone(h) }
+        Self {
+            handle: Arc::clone(h),
+        }
     }
 }

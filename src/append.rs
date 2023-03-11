@@ -1,13 +1,13 @@
-use core::{
-    fmt::Debug,
-    ptr::null_mut,
-    sync::atomic::Ordering,
-};
+use core::{fmt::Debug, ptr::null_mut, sync::atomic::Ordering};
 extern crate alloc;
 use alloc::alloc::{Allocator, Global};
 
-use crate::{sync::{Arc, AtomicPtr, AtomicUsize}, Inner, WORD_SIZE, split_idx, max_len};
 use self::{reader::ReadHandle, writer::WriteHandle};
+use crate::{
+    max_len, split_idx,
+    sync::{Arc, AtomicPtr, AtomicUsize},
+    Inner, WORD_SIZE,
+};
 
 pub mod iter;
 pub mod reader;
@@ -81,7 +81,7 @@ impl<T, A: Allocator> Stele<T, A> {
             }
             *self.inners[outer_idx]
                 .load(Ordering::Acquire)
-                .add(inner_idx) = crate::Inner::init(val);
+                .add(inner_idx) = crate::Inner::new(val);
         }
         self.cap.store(idx + 1, Ordering::Release);
     }
@@ -156,7 +156,11 @@ impl<T, A: Allocator> Drop for Stele<T, A> {
         for idx in 0..num_inners {
             #[cfg(not(loom))]
             unsafe {
-                crate::mem::dealloc_inner(&self.allocator, *self.inners[idx].get_mut(), max_len(idx));
+                crate::mem::dealloc_inner(
+                    &self.allocator,
+                    *self.inners[idx].get_mut(),
+                    max_len(idx),
+                );
             }
             #[cfg(loom)]
             unsafe {

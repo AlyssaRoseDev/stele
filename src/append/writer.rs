@@ -1,10 +1,8 @@
-use std::{
-    sync::atomic::Ordering,
-};
+use std::sync::atomic::Ordering;
 
-use alloc::alloc::{Allocator, Global};
+use super::{ReadHandle, Stele};
 use crate::{max_len, split_idx, sync::Arc};
-use super::{Stele, ReadHandle};
+use alloc::alloc::{Allocator, Global};
 
 /// A `WriteHandle` for a [`Stele`].
 ///
@@ -31,7 +29,7 @@ impl<T, A: Allocator> WriteHandle<T, A> {
             }
             *self.handle.inners[outer_idx]
                 .load(Ordering::Acquire)
-                .add(inner_idx) = crate::Inner::init(val);
+                .add(inner_idx) = crate::Inner::new(val);
         }
         self.handle.cap.store(idx + 1, Ordering::Release);
     }

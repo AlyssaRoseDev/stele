@@ -1,4 +1,4 @@
-use alloc::alloc::{Global, Allocator};
+use alloc::alloc::{Allocator, Global};
 
 use super::reader::ReadHandle;
 
