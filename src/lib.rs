@@ -5,16 +5,20 @@
     missing_debug_implementations
 )]
 #![warn(missing_docs)]
-#![feature(allocator_api, negative_impls, strict_provenance)]
+#![cfg_attr(feature = "allocator_api", feature(allocator_api))]
 #![cfg_attr(not(feature = "std"), no_std)]
 //TODO: Write better docs
 #![doc = include_str!("../README.md")]
 extern crate alloc;
 
+#[cfg(not(feature = "allocator_api"))]
 mod append;
+#[cfg(feature = "allocator_api")]
+mod append_alloc;
+#[cfg(feature = "allocator_api")]
+use append_alloc as append;
 mod mem;
 mod sync;
-
 
 pub use append::reader::ReadHandle;
 pub use append::writer::WriteHandle;
