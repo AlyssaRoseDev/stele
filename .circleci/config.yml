@@ -27,7 +27,9 @@ jobs:
       - run:
           name: cargo doc
           command: cargo doc --no-deps
-
+      - run:
+          name: no_std
+          command: cargo test --no-default-features
 workflows:
   full:
     jobs:
