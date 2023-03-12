@@ -8,8 +8,9 @@ jobs:
       - run:
           name: Tests
           command: |
-            cargo test --all-features --all-targets
-            RUSTFLAGS="--cfg loom" cargo test --all-features --all-targets
+            cargo test --all-targets
+            cargo +nightly test --all-features --all-targets
+            RUSTFLAGS="--cfg loom" cargo +nightly test --all-features --all-targets
   checks:
     docker:
       - image: *img
