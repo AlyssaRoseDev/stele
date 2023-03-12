@@ -4,6 +4,7 @@ jobs:
     docker:
       - image: &img cimg/rust:1.56
     steps:
+      - checkout
       - run:
           name: Tests
           command: |
@@ -13,6 +14,7 @@ jobs:
     docker:
       - image: *img
     steps:
+      - checkout
       - run: cargo clippy
       - run: cargo fmt --check
       - run:
