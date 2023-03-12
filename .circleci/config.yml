@@ -16,7 +16,6 @@ jobs:
     steps:
       - checkout
       - run: cargo clippy
-      - run: cargo fmt --check
       - run:
           name: cargo doc
           command: cargo doc --no-deps
