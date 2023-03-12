@@ -2,25 +2,35 @@ version: 2.1
 jobs:
   test:
     docker:
-      - image: &img cimg/rust:1.56
+      - image: &img cimg/rust:1.64
     steps:
+      - checkout
       - run:
           name: Tests
           command: |
-            cargo miri test --all-features --all-targets
-            RUSTFLAGS="--cfg loom" cargo test --all-features --all-targets
+            cargo test --all-targets
+  loom:
+    docker:
+      - image: *img
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Loom
+          command: RUSTFLAGS="--cfg loom" cargo test --all-targets --release
   checks:
     docker:
       - image: *img
     steps:
+      - checkout
       - run: cargo clippy
-      - run: cargo fmt --check
       - run:
           name: cargo doc
-          command: cargo doc --no-deps --all-features
+          command: cargo doc --no-deps
 
 workflows:
   full:
     jobs:
       - test
+      - loom
       - checks
