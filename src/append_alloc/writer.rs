@@ -1,5 +1,5 @@
-use core::sync::atomic::Ordering;
 use core::marker::PhantomData;
+use core::sync::atomic::Ordering;
 
 use super::{ReadHandle, Stele};
 use crate::{max_len, split_idx, sync::Arc};
