@@ -1,5 +1,26 @@
 version: 2.1
 jobs:
-  build:
+  test:
     docker:
-      - image: cimg/rust:1.67
+      - image: &img cimg/rust:1.56
+    steps:
+      - run:
+          name: Tests
+          command: |
+            cargo miri test --all-features --all-targets
+            RUSTFLAGS="--cfg loom" cargo test --all-features --all-targets
+  checks:
+    docker:
+      - image: *img
+    steps:
+      - run: cargo clippy
+      - run: cargo fmt --check
+      - run:
+          name: cargo doc
+          command: cargo doc --no-deps --all-features
+
+workflows:
+  full:
+    jobs:
+      - test
+      - checks
