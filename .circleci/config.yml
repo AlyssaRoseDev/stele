@@ -9,8 +9,7 @@ jobs:
           name: Tests
           command: |
             cargo test --all-targets
-            cargo +nightly test --all-features --all-targets
-            RUSTFLAGS="--cfg loom" cargo +nightly test --all-features --all-targets
+            RUSTFLAGS="--cfg loom" cargo test --all-targets
   checks:
     docker:
       - image: *img
@@ -20,7 +19,7 @@ jobs:
       - run: cargo fmt --check
       - run:
           name: cargo doc
-          command: cargo doc --no-deps --all-features
+          command: cargo doc --no-deps
 
 workflows:
   full:
