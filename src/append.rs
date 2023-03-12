@@ -1,4 +1,4 @@
-use core::{fmt::Debug, ptr::null_mut, sync::atomic::Ordering, marker::PhantomData};
+use core::{fmt::Debug, marker::PhantomData, ptr::null_mut, sync::atomic::Ordering};
 extern crate alloc;
 
 use self::{reader::ReadHandle, writer::WriteHandle};
@@ -40,7 +40,7 @@ impl<T> Stele<T> {
         });
         let h = WriteHandle {
             handle: Arc::clone(&s),
-            _unsync: PhantomData
+            _unsync: PhantomData,
         };
         let r = ReadHandle { handle: s };
         (h, r)
@@ -53,7 +53,7 @@ impl<T> Stele<T> {
         let s = Arc::new(self);
         let h = WriteHandle {
             handle: Arc::clone(&s),
-            _unsync: PhantomData
+            _unsync: PhantomData,
         };
         let r = ReadHandle { handle: s };
         (h, r)
@@ -159,17 +159,11 @@ impl<T> Drop for Stele<T> {
         for idx in 0..num_inners {
             #[cfg(not(loom))]
             unsafe {
-                crate::mem::dealloc_inner(
-                    *self.inners[idx].get_mut(),
-                    max_len(idx),
-                );
+                crate::mem::dealloc_inner(*self.inners[idx].get_mut(), max_len(idx));
             }
             #[cfg(loom)]
             unsafe {
-                crate::mem::dealloc_inner(
-                    self.inners[idx].unsync_load(),
-                    max_len(idx),
-                );
+                crate::mem::dealloc_inner(self.inners[idx].unsync_load(), max_len(idx));
             }
         }
     }

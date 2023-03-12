@@ -1,4 +1,4 @@
-use core::{fmt::Debug, ptr::null_mut, sync::atomic::Ordering, marker::PhantomData};
+use core::{fmt::Debug, marker::PhantomData, ptr::null_mut, sync::atomic::Ordering};
 extern crate alloc;
 use alloc::alloc::{Allocator, Global};
 
@@ -43,7 +43,7 @@ impl<T> Stele<T> {
         });
         let h = WriteHandle {
             handle: Arc::clone(&s),
-            _unsync: PhantomData
+            _unsync: PhantomData,
         };
         let r = ReadHandle { handle: s };
         (h, r)
@@ -60,7 +60,7 @@ impl<T, A: Allocator> Stele<T, A> {
         });
         let h = WriteHandle {
             handle: Arc::clone(&s),
-            _unsync: PhantomData
+            _unsync: PhantomData,
         };
         let r = ReadHandle { handle: s };
         (h, r)
@@ -71,7 +71,7 @@ impl<T, A: Allocator> Stele<T, A> {
         let s = Arc::new(self);
         let h = WriteHandle {
             handle: Arc::clone(&s),
-            _unsync: PhantomData
+            _unsync: PhantomData,
         };
         let r = ReadHandle { handle: s };
         (h, r)
