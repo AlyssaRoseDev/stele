@@ -135,7 +135,7 @@ impl<T: Copy> Stele<T> {
     }
 }
 
-impl<T> FromIterator<T> for Stele<T> {
+impl<T> core::iter::FromIterator<T> for Stele<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let s = Stele {
             inners: [(); WORD_SIZE].map(|_| AtomicPtr::new(null_mut())),

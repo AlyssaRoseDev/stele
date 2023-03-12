@@ -1,5 +1,5 @@
 # Stele
-Stele is a Single Writer, Many Reader append-only concurrent data structure with support for no_std and the Allocator API
+Stele is a Single Writer, Many Reader append-only concurrent data structure with opt-in support for no_std and the Allocator API
 
 ## How does it work?
 
@@ -47,3 +47,8 @@ fn example() {
     assert_eq!(copied, 42);
 }
 ```
+
+## Minimum Supported Rust Version (MSRV)
+- Without the allocator api, MSRV is 1.56 (Rust 2021 Edition)
+
+- As of 2023-03-12, the allocator api requires nightly and does not have a stable version. Once the allocator api is supported on stable this will be replaced with said stable version
