@@ -1,4 +1,5 @@
-use std::sync::atomic::Ordering;
+use core::sync::atomic::Ordering;
+use core::marker::PhantomData;
 
 use super::{ReadHandle, Stele};
 use crate::{max_len, split_idx, sync::Arc};
@@ -13,10 +14,10 @@ use alloc::alloc::{Allocator, Global};
 #[derive(Debug)]
 pub struct WriteHandle<T, A: Allocator = Global> {
     pub(crate) handle: Arc<Stele<T, A>>,
+    pub(crate) _unsync: PhantomData<*mut T>,
 }
 
 unsafe impl<T, A: Allocator> Send for WriteHandle<T, A> where T: Send + Sync {}
-impl<T, A: Allocator> !Sync for WriteHandle<T, A> {}
 
 impl<T, A: Allocator> WriteHandle<T, A> {
     /// Pushes a new item on to the end of the [`Stele`], allocating a new block of memory if necessary
@@ -37,7 +38,7 @@ impl<T, A: Allocator> WriteHandle<T, A> {
     fn allocate(&self, idx: usize, len: usize) {
         self.handle.inners[idx]
             .compare_exchange(
-                std::ptr::null_mut(),
+                core::ptr::null_mut(),
                 unsafe { crate::mem::alloc_inner(&self.handle.allocator, len) },
                 Ordering::AcqRel,
                 Ordering::Relaxed,

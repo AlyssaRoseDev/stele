@@ -48,7 +48,7 @@ impl<T> Stele<T> {
 }
 
 impl<T> Stele<T> {
-    /// Creates a pair of handles from an owned Stele after using [`FromIterator`]
+    /// Creates a pair of handles from an owned Stele after using [`FromIterator`](core::iter::FromIterator)
     pub fn to_handles(self) -> (WriteHandle<T>, ReadHandle<T>) {
         let s = Arc::new(self);
         let h = WriteHandle {
@@ -80,7 +80,7 @@ impl<T> Stele<T> {
     pub(crate) fn allocate(&self, idx: usize) {
         self.inners[idx]
             .compare_exchange(
-                std::ptr::null_mut(),
+                core::ptr::null_mut(),
                 unsafe { crate::mem::alloc_inner(&self.allocator, max_len(idx)) },
                 Ordering::AcqRel,
                 Ordering::Relaxed,
@@ -92,7 +92,7 @@ impl<T> Stele<T> {
     pub(crate) fn allocate(&self, idx: usize) {
         self.inners[idx]
             .compare_exchange(
-                std::ptr::null_mut(),
+                core::ptr::null_mut(),
                 unsafe { crate::mem::alloc_inner( max_len(idx)) },
                 Ordering::AcqRel,
                 Ordering::Relaxed,

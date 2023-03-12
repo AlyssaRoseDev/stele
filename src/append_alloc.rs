@@ -1,4 +1,4 @@
-use core::{fmt::Debug, ptr::null_mut, sync::atomic::Ordering};
+use core::{fmt::Debug, ptr::null_mut, sync::atomic::Ordering, marker::PhantomData};
 extern crate alloc;
 use alloc::alloc::{Allocator, Global};
 
@@ -43,6 +43,7 @@ impl<T> Stele<T> {
         });
         let h = WriteHandle {
             handle: Arc::clone(&s),
+            _unsync: PhantomData
         };
         let r = ReadHandle { handle: s };
         (h, r)
@@ -59,6 +60,7 @@ impl<T, A: Allocator> Stele<T, A> {
         });
         let h = WriteHandle {
             handle: Arc::clone(&s),
+            _unsync: PhantomData
         };
         let r = ReadHandle { handle: s };
         (h, r)
@@ -69,6 +71,7 @@ impl<T, A: Allocator> Stele<T, A> {
         let s = Arc::new(self);
         let h = WriteHandle {
             handle: Arc::clone(&s),
+            _unsync: PhantomData
         };
         let r = ReadHandle { handle: s };
         (h, r)
@@ -94,7 +97,7 @@ impl<T, A: Allocator> Stele<T, A> {
     fn allocate(&self, idx: usize, len: usize) {
         self.inners[idx]
             .compare_exchange(
-                std::ptr::null_mut(),
+                core::ptr::null_mut(),
                 unsafe { crate::mem::alloc_inner(&self.allocator, len) },
                 Ordering::AcqRel,
                 Ordering::Relaxed,
@@ -137,7 +140,7 @@ impl<T: Copy, A: Allocator> Stele<T, A> {
     }
 }
 
-impl<T> FromIterator<T> for Stele<T> {
+impl<T> core::iter::FromIterator<T> for Stele<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let s = Stele {
             inners: [(); WORD_SIZE].map(|_| AtomicPtr::new(null_mut())),

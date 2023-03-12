@@ -32,16 +32,17 @@ where
     }
 }
 
+#[cfg(not(feature = "allocator_api"))]
 mod without_allocator {
     use alloc::alloc::{alloc, dealloc};
     use core::alloc::Layout;
     /// # Safety
-    /// `alloc_inner` must be called with `len` such that `len` * [`size_of::<T>()`](std::mem::size_of()),
-    /// when aligned to [`align_of::<T>()`](std::mem::align_of()), is no more than [`usize::max`]
+    /// `alloc_inner` must be called with `len` such that `len` * [`size_of::<T>()`](core::mem::size_of()),
+    /// when aligned to [`align_of::<T>()`](core::mem::align_of()), is no more than [`usize::max`]
     pub(crate) unsafe fn alloc_inner<T>(len: usize) -> *mut crate::Inner<T> {
-        debug_assert!(std::mem::size_of::<T>().checked_mul(len).is_some());
+        debug_assert!(core::mem::size_of::<T>().checked_mul(len).is_some());
         if core::mem::size_of::<T>() == 0 {
-            std::ptr::NonNull::dangling().as_ptr()
+            core::ptr::NonNull::dangling().as_ptr()
         } else {
             let layout = Layout::array::<T>(len)
                 .expect("Len is constrained by the safety contract of alloc_inner()!");
@@ -56,7 +57,7 @@ mod without_allocator {
     ///
     /// - `ptr` must have been allocated by `alloc_inner` and therefore must not be null
     pub(crate) unsafe fn dealloc_inner<T>(ptr: *mut crate::Inner<T>, len: usize) {
-        debug_assert!(std::mem::size_of::<T>().checked_mul(len).is_some());
+        debug_assert!(core::mem::size_of::<T>().checked_mul(len).is_some());
         debug_assert!(!ptr.is_null());
         if core::mem::size_of::<T>() != 0 {
             let layout = Layout::array::<T>(len)
@@ -71,16 +72,17 @@ mod without_allocator {
 #[cfg(feature = "allocator_api")]
 mod allocator {
     use alloc::alloc::{handle_alloc_error, Allocator, Layout};
+    use core::ptr::NonNull;
     /// # Safety
-    /// `alloc_inner` must be called with `len` such that `len` * [`size_of::<T>()`](std::mem::size_of()),
-    /// when aligned to [`align_of::<T>()`](std::mem::align_of()), is no more than [`usize::max`]
+    /// `alloc_inner` must be called with `len` such that `len` * [`size_of::<T>()`](core::mem::size_of()),
+    /// when aligned to [`align_of::<T>()`](core::mem::align_of()), is no more than [`usize::max`]
     pub(crate) unsafe fn alloc_inner<T, A: Allocator>(
         allocator: &A,
         len: usize,
     ) -> *mut crate::Inner<T> {
-        debug_assert!(std::mem::size_of::<T>().checked_mul(len).is_some());
+        debug_assert!(core::mem::size_of::<T>().checked_mul(len).is_some());
         if core::mem::size_of::<T>() == 0 {
-            std::ptr::invalid_mut(1)
+            NonNull::dangling().as_ptr()
         } else {
             let layout = Layout::array::<T>(len)
                 .expect("Len is constrained by the safety contract of alloc_inner()!");
@@ -100,7 +102,7 @@ mod allocator {
         ptr: *mut crate::Inner<T>,
         len: usize,
     ) {
-        debug_assert!(std::mem::size_of::<T>().checked_mul(len).is_some());
+        debug_assert!(core::mem::size_of::<T>().checked_mul(len).is_some());
         debug_assert!(!ptr.is_null());
         if core::mem::size_of::<T>() != 0 {
             let layout = Layout::array::<T>(len)

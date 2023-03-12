@@ -30,9 +30,8 @@ fn example() {
     writer.push(42);
     assert_eq!(writer.len(), 1);
     let t1 = thread::spawn(move || {
-        //Readers are `Send` + `Sync` so you can use and move references between threads.
-        let reader = &reader1;
-        assert_eq!(reader.read(1), &42)
+        // For most types, reads can only return references
+        assert_eq!(reader1.read(1), &42)
     });
     let t2 = thread::spawn(move || {
         //Readers also support indexing
