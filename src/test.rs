@@ -25,3 +25,8 @@ fn getcopy() {
     wh.push(0);
     assert_eq!(rh.get(0), 0);
 }
+
+#[test]
+fn never_writes() {
+    let (_wh, _rh) = Stele::<()>::new();
+}

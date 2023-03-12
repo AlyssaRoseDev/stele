@@ -47,7 +47,7 @@ impl<T, A: Allocator> WriteHandle<T, A> {
 
     /// Creates a new [`ReadHandle`]
     #[must_use]
-    pub fn get_read_handle(&self) -> ReadHandle<T, A> {
+    pub fn new_read_handle(&self) -> ReadHandle<T, A> {
         ReadHandle::from(&self.handle)
     }
 

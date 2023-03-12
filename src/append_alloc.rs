@@ -26,8 +26,10 @@ pub struct Stele<T, A: Allocator = Global> {
     allocator: A,
 }
 
-unsafe impl<T, A: Allocator> Send for Stele<T, A> where T: Send {}
-unsafe impl<T, A: Allocator> Sync for Stele<T, A> where T: Sync {}
+//SAFETY: If `T` is both `Send` and `Sync`, it is safe to both move the
+//array of inners and hand out references to the contained elements.
+unsafe impl<T, A: Allocator> Send for Stele<T, A> where T: Send + Sync {}
+unsafe impl<T, A: Allocator> Sync for Stele<T, A> where T: Send + Sync {}
 
 impl<T> Stele<T> {
     #[allow(clippy::new_ret_no_self)]
@@ -72,9 +74,12 @@ impl<T, A: Allocator> Stele<T, A> {
         (h, r)
     }
 
-    fn push(&self, val: T) {
+    /// SAFETY: You must only call `push` once at a time to avoid write-write conflicts
+    unsafe fn push(&self, val: T) {
         let idx = self.cap.load(Ordering::Acquire);
         let (outer_idx, inner_idx) = split_idx(idx);
+        //SAFETY: By only incrementing the index after appending the element we ensure that we never allow reads to access unwritten memory
+        //and by the safety contract of `push` we know we aren't writing to the same spot multiple times
         unsafe {
             if idx.is_power_of_two() || idx == 0 || idx == 1 {
                 self.allocate(outer_idx, max_len(outer_idx));
@@ -140,7 +145,8 @@ impl<T> FromIterator<T> for Stele<T> {
             allocator: Global,
         };
         for item in iter {
-            s.push(item);
+            //SAFETY: We are the only writer since we just created the Stele
+            unsafe { s.push(item) };
         }
         s
     }
