@@ -10,7 +10,6 @@ jobs:
       - run:
           name: Tests
           command: cargo test --all-targets
-    parallelism: 3
   nightly_test:
     docker:
       - image: *img
