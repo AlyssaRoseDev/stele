@@ -1,4 +1,6 @@
 version: 2.1
+orbs:
+  rust: circleci/rust@1.6.0
 jobs:
   test:
     docker:
@@ -7,8 +9,18 @@ jobs:
       - checkout
       - run:
           name: Tests
-          command: |
-            cargo test --all-targets
+          command: cargo test --all-targets
+    parallelism: 3
+  nightly_test:
+    docker:
+      - image: *img
+    steps:
+      - checkout
+      - rust/install:
+          version: nightly
+      - run:
+          name: Nightly Tests
+          command: cargo +nightly test --all-targets --all-features
   loom:
     docker:
       - image: *img
@@ -30,6 +42,7 @@ jobs:
       - run:
           name: no_std
           command: cargo test --no-default-features
+    parallelism: 3
 workflows:
   full:
     jobs:
