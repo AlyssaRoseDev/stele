@@ -1,6 +1,7 @@
 version: 2.1
 orbs:
   rust: circleci/rust@1.6.0
+  codecov: codecov/codecov@3.2.4
 jobs:
   test:
     docker:
@@ -44,9 +45,21 @@ jobs:
           name: no_std
           command: cargo test --no-default-features
     parallelism: 3
+  coverage:
+    docker:
+      - image: *img
+    steps:
+      - checkout
+      - run: rustup component add llvm-tools-preview
+      - run: cargo install cargo-llvm-cov
+      - run: cargo llvm-cov --lcov --output-path lcov.info
+      - codecov/upload:
+          file: lcov.info
 workflows:
   full:
     jobs:
       - test
       - loom
       - checks
+      - coverage:
+          context: CODECOV_TOKEN
