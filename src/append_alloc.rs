@@ -163,7 +163,7 @@ impl<T, A: Allocator> Drop for Stele<T, A> {
         #[cfg(not(loom))]
         let size = *self.len.get_mut();
         #[cfg(loom)]
-        let size = unsafe { self.cap.unsync_load() };
+        let size = unsafe { self.len.unsync_load() };
         let num_inners = WORD_SIZE - size.leading_zeros() as usize;
         for idx in 0..num_inners {
             #[cfg(not(loom))]
