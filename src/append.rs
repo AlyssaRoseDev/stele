@@ -7,9 +7,11 @@ use crate::{
     sync::{Arc, AtomicPtr, AtomicUsize},
     Inner, WORD_SIZE,
 };
-
+///Iterate over a Stele by Reference or by Value (for copy types)
 pub mod iter;
+///Implementation details for [`ReadHandle`]
 pub mod reader;
+///Implementation details for [`WriteHandle`]
 pub mod writer;
 
 /// A [`Stele`] is an append-only data structure that allows for zero copying after by having a set of
@@ -21,7 +23,7 @@ pub mod writer;
 #[derive(Debug)]
 pub struct Stele<T> {
     inners: [AtomicPtr<Inner<T>>; WORD_SIZE],
-    cap: AtomicUsize,
+    len: AtomicUsize,
 }
 
 //SAFETY: If `T` is both `Send` and `Sync`, it is safe to both move the
@@ -36,7 +38,7 @@ impl<T> Stele<T> {
     pub fn new() -> (WriteHandle<T>, ReadHandle<T>) {
         let s = Arc::new(Self {
             inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
-            cap: AtomicUsize::new(0),
+            len: AtomicUsize::new(0),
         });
         let h = WriteHandle {
             handle: Arc::clone(&s),
@@ -61,7 +63,7 @@ impl<T> Stele<T> {
 
     /// SAFETY: You must only call `push` once at a time to avoid write-write conflicts
     unsafe fn push(&self, val: T) {
-        let idx = self.cap.load(Ordering::Acquire);
+        let idx = self.len.load(Ordering::Acquire);
         let (outer_idx, inner_idx) = split_idx(idx);
         //SAFETY: By only incrementing the index after appending the element we ensure that we never allow reads to access unwritten memory
         //and by the safety contract of `push` we know we aren't writing to the same spot multiple times
@@ -73,7 +75,7 @@ impl<T> Stele<T> {
                 .load(Ordering::Acquire)
                 .add(inner_idx) = crate::Inner::new(val);
         }
-        self.cap.store(idx + 1, Ordering::Release);
+        self.len.store(idx + 1, Ordering::Release);
     }
 
     #[cfg(feature = "allocator_api")]
@@ -101,7 +103,7 @@ impl<T> Stele<T> {
     }
 
     pub(crate) fn read(&self, idx: usize) -> &T {
-        debug_assert!(self.cap.load(Ordering::Acquire) > idx);
+        debug_assert!(self.len.load(Ordering::Acquire) > idx);
         unsafe { (*self.read_raw(idx)).read() }
     }
 
@@ -111,13 +113,14 @@ impl<T> Stele<T> {
     }
 
     pub(crate) fn len(&self) -> usize {
-        self.cap.load(Ordering::Acquire)
+        self.len.load(Ordering::Acquire)
     }
 
     pub(crate) fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    //SAFETY: idx must be less than self.len
     unsafe fn read_raw(&self, idx: usize) -> *mut crate::Inner<T> {
         let (outer_idx, inner_idx) = crate::split_idx(idx);
         unsafe {
@@ -130,7 +133,7 @@ impl<T> Stele<T> {
 
 impl<T: Copy> Stele<T> {
     pub(crate) fn get(&self, idx: usize) -> T {
-        debug_assert!(self.cap.load(Ordering::Acquire) > idx);
+        debug_assert!(self.len.load(Ordering::Acquire) > idx);
         unsafe { (*self.read_raw(idx)).get() }
     }
 }
@@ -139,7 +142,7 @@ impl<T> core::iter::FromIterator<T> for Stele<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let s = Stele {
             inners: [(); WORD_SIZE].map(|_| AtomicPtr::new(null_mut())),
-            cap: AtomicUsize::new(0),
+            len: AtomicUsize::new(0),
         };
         for item in iter {
             //SAFETY: We are the only writer since we just created the Stele
@@ -152,9 +155,9 @@ impl<T> core::iter::FromIterator<T> for Stele<T> {
 impl<T> Drop for Stele<T> {
     fn drop(&mut self) {
         #[cfg(not(loom))]
-        let size = *self.cap.get_mut();
+        let size = *self.len.get_mut();
         #[cfg(loom)]
-        let size = unsafe { self.cap.unsync_load() };
+        let size = unsafe { self.len.unsync_load() };
         let num_inners = WORD_SIZE - size.leading_zeros() as usize;
         for idx in 0..num_inners {
             #[cfg(not(loom))]

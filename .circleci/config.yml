@@ -34,10 +34,12 @@ jobs:
       - image: *img
     steps:
       - checkout
+      - rust/install:
+          version: nightly
       - run: cargo clippy
       - run:
           name: cargo doc
-          command: cargo doc --no-deps
+          command: cargo +nightly doc --no-deps
       - run:
           name: no_std
           command: cargo test --no-default-features

@@ -5,28 +5,30 @@ use crate::{
 };
 use core::ops::Index;
 
-/// A `ReadHandle` for a [`Stele`]
+///The reader for a [`Stele`]
 #[derive(Debug)]
 pub struct ReadHandle<T> {
     pub(crate) handle: Arc<Stele<T>>,
 }
 
+//SAFETY: ReadHandle only provides immutable references to its contents and does not perform
+//any mutable operations internally
 unsafe impl<T> Send for ReadHandle<T> where Stele<T>: Send + Sync {}
-unsafe impl<T> Sync for ReadHandle<T> where Stele<T>: Sync {}
+unsafe impl<T> Sync for ReadHandle<T> where Stele<T>: Send + Sync {}
 
 impl<T> ReadHandle<T> {
     /// Reads the value at the given index
     ///
     /// # Panic
-    ///
-    /// This function panics in debug if the given index is out of bounds
+    /// 
+    /// This function panics in debug if the given index is out of bounds.
+    /// Since [`Index`] operates through this function, this same caveat also applies when indexing
     #[must_use]
     pub fn read(&self, idx: usize) -> &T {
         self.handle.read(idx)
     }
 
-    /// Attempts to read the value at the index and returns [`Some`] if the value exists, and [`None`]
-    /// otherwise
+    /// Attempts to read the value at the index and returns [`Some`] if the value exists, and [`None`] otherwise
     #[must_use]
     pub fn try_read(&self, idx: usize) -> Option<&T> {
         self.handle.try_read(idx)
@@ -42,11 +44,19 @@ impl<T> ReadHandle<T> {
 
     /// Returns the current length of the underlying [`Stele`]
     ///
-    /// Note: This is an optimistic operation but if this returns `false` it *cannot* return true
-    /// in the future
+    /// Note: This is an optimistic operation as a write may happen between the operation returning and making use of the information provided
+    /// but if this returns `false` it *cannot* return `true` in the future
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.handle.is_empty()
+    }
+
+    /// Creates a [`RefIterator`]
+    ///
+    /// This is primarily used to ensure the creation of a [`RefIterator`] when T is Copy
+    #[must_use]
+    pub fn iter(&self) -> RefIterator<'_, T> {
+        self.into_iter()
     }
 }
 
@@ -54,6 +64,8 @@ impl<T: Copy> ReadHandle<T> {
     /// Get provides a way to get an owned copy of a value inside a [`Stele`]
     /// provided the `T` implements [`Copy`]
     ///
+    /// # Panic
+    /// 
     /// This function panics in debug if the given index is out of bounds
     #[must_use]
     pub fn get(&self, idx: usize) -> T {
