@@ -21,8 +21,9 @@ impl<T, A: Allocator> ReadHandle<T, A> {
     /// Reads the value at the given index
     ///
     /// # Panic
-    ///
-    /// This function panics in debug if the given index is out of bounds
+    /// 
+    /// This function panics in debug if the given index is out of bounds.
+    /// Since [`Index`] operates through this function, this same caveat also applies when indexing
     #[must_use]
     pub fn read(&self, idx: usize) -> &T {
         self.handle.read(idx)
