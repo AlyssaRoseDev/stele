@@ -1,4 +1,6 @@
 # Stele
+[![codecov](https://codecov.io/gh/AlyssaRoseDev/stele/branch/main/graph/badge.svg?token=WSBP2ZWO0M)](https://codecov.io/gh/AlyssaRoseDev/stele)
+
 Stele is a Single Writer, Many Reader append-only concurrent data structure with opt-in support for no_std and the Allocator API
 
 ## How does it work?

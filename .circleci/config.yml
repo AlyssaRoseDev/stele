@@ -3,9 +3,15 @@ orbs:
   rust: circleci/rust@1.6.0
   codecov: codecov/codecov@3.2.4
 jobs:
+  build:
+    docker: 
+      - image: &img cimg/rust:1.64
+    steps:
+      - checkout
+      - rust/build
   test:
     docker:
-      - image: &img cimg/rust:1.64
+      - image: *img
     steps:
       - checkout
       - run:
@@ -58,6 +64,7 @@ jobs:
 workflows:
   full:
     jobs:
+      - build
       - test
       - loom
       - checks
