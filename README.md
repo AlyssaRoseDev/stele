@@ -9,9 +9,7 @@ Stele is, in essence, an array of exponentially larger arrays, where the nth ele
 
 - An inner index that is the difference of the input index and the outer index. This is the offset from the pointer given by the outer array to the element pointed to by the index.
 
-This allows us to use the whole usable address space of a given architecture without needing to copy the data from the old location to the new location on each new allocation.
-
-The tradeoff is memory usage, as the data structure has to hold an array of pointers equal to the address width of the processor. For example, on a 64 bit system, the outer array holds 64 8-byte pointers, using 512 bytes of memory, even without any allocation.
+The tradeoff is memory usage, as the data structure has to hold an array of 32 pointers. For example, on a 64 bit system, the outer array holds 32 8-byte pointers, using 256 bytes of memory, even without any allocation.
 
 ## How do I use it?
 
