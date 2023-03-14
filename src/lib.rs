@@ -6,17 +6,22 @@
 )]
 #![warn(missing_docs)]
 #![cfg_attr(feature = "allocator_api", feature(allocator_api))]
+#![cfg_attr(doc, feature(doc_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
-//TODO: Write better docs
 #![doc = include_str!("../README.md")]
 extern crate alloc;
 
-#[cfg(not(feature = "allocator_api"))]
-mod append;
-#[cfg(feature = "allocator_api")]
-mod append_alloc;
-#[cfg(feature = "allocator_api")]
-use append_alloc as append;
+///The Standard Stele implementation
+#[cfg(any(not(feature = "allocator_api"), doc))]
+#[cfg_attr(doc, doc(cfg(not(feature = "allocator_api"))))]
+pub mod append;
+#[cfg(any(feature = "allocator_api", doc))]
+#[cfg_attr(doc, doc(cfg(feature = "allocator_api")))]
+///The Allocator API compatible Stele implementation
+pub mod append_alloc;
+//This is a hacky way to make the rename not error when compiling documentation
+#[cfg(all(feature = "allocator_api", not(doc)))]
+pub use append_alloc as append;
 mod mem;
 mod sync;
 

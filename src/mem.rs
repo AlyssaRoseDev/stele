@@ -15,6 +15,7 @@ impl<T> Inner<T> {
         Self { raw: init }
     }
 
+    /// SAFETY: The Inner must have been written to before reading
     pub(crate) unsafe fn read(&self) -> &T {
         unsafe {
             self.raw.assume_init_ref().get().as_ref()

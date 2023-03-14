@@ -9,8 +9,11 @@ use crate::{
     Inner, WORD_SIZE,
 };
 
+///Iterate over a Stele by Reference or by Value (for copy types)
 pub mod iter;
+///Implementation details for [`ReadHandle`]
 pub mod reader;
+///Implementation details for [`WriteHandle`]
 pub mod writer;
 
 /// A [`Stele`] is an append-only data structure that allows for zero copying after by having a set of
@@ -22,7 +25,7 @@ pub mod writer;
 #[derive(Debug)]
 pub struct Stele<T, A: Allocator = Global> {
     inners: [AtomicPtr<Inner<T>>; WORD_SIZE],
-    cap: AtomicUsize,
+    len: AtomicUsize,
     allocator: A,
 }
 
@@ -38,7 +41,7 @@ impl<T> Stele<T> {
     pub fn new() -> (WriteHandle<T>, ReadHandle<T>) {
         let s = Arc::new(Self {
             inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
-            cap: AtomicUsize::new(0),
+            len: AtomicUsize::new(0),
             allocator: Global,
         });
         let h = WriteHandle {
@@ -55,7 +58,7 @@ impl<T, A: Allocator> Stele<T, A> {
     pub fn new_in(allocator: A) -> (WriteHandle<T, A>, ReadHandle<T, A>) {
         let s = Arc::new(Self {
             inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
-            cap: AtomicUsize::new(0),
+            len: AtomicUsize::new(0),
             allocator,
         });
         let h = WriteHandle {
@@ -66,7 +69,7 @@ impl<T, A: Allocator> Stele<T, A> {
         (h, r)
     }
 
-    /// Creates a pair of handles from an owned Stele after using [`FromIterator`]
+    /// Creates a pair of handles from an owned Stele after using [`FromIterator`](core::iter::FromIterator)
     pub fn to_handles(self) -> (WriteHandle<T, A>, ReadHandle<T, A>) {
         let s = Arc::new(self);
         let h = WriteHandle {
@@ -79,7 +82,7 @@ impl<T, A: Allocator> Stele<T, A> {
 
     /// SAFETY: You must only call `push` once at a time to avoid write-write conflicts
     unsafe fn push(&self, val: T) {
-        let idx = self.cap.load(Ordering::Acquire);
+        let idx = self.len.load(Ordering::Acquire);
         let (outer_idx, inner_idx) = split_idx(idx);
         //SAFETY: By only incrementing the index after appending the element we ensure that we never allow reads to access unwritten memory
         //and by the safety contract of `push` we know we aren't writing to the same spot multiple times
@@ -91,7 +94,7 @@ impl<T, A: Allocator> Stele<T, A> {
                 .load(Ordering::Acquire)
                 .add(inner_idx) = crate::Inner::new(val);
         }
-        self.cap.store(idx + 1, Ordering::Release);
+        self.len.store(idx + 1, Ordering::Release);
     }
 
     fn allocate(&self, idx: usize, len: usize) {
@@ -106,7 +109,7 @@ impl<T, A: Allocator> Stele<T, A> {
     }
 
     pub(crate) fn read(&self, idx: usize) -> &T {
-        debug_assert!(self.cap.load(Ordering::Acquire) > idx);
+        debug_assert!(self.len.load(Ordering::Acquire) > idx);
         unsafe { (*self.read_raw(idx)).read() }
     }
 
@@ -116,7 +119,7 @@ impl<T, A: Allocator> Stele<T, A> {
     }
 
     pub(crate) fn len(&self) -> usize {
-        self.cap.load(Ordering::Acquire)
+        self.len.load(Ordering::Acquire)
     }
 
     pub(crate) fn is_empty(&self) -> bool {
@@ -135,7 +138,7 @@ impl<T, A: Allocator> Stele<T, A> {
 
 impl<T: Copy, A: Allocator> Stele<T, A> {
     pub(crate) fn get(&self, idx: usize) -> T {
-        debug_assert!(self.cap.load(Ordering::Acquire) > idx);
+        debug_assert!(self.len.load(Ordering::Acquire) > idx);
         unsafe { (*self.read_raw(idx)).get() }
     }
 }
@@ -144,7 +147,7 @@ impl<T> core::iter::FromIterator<T> for Stele<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let s = Stele {
             inners: [(); WORD_SIZE].map(|_| AtomicPtr::new(null_mut())),
-            cap: AtomicUsize::new(0),
+            len: AtomicUsize::new(0),
             allocator: Global,
         };
         for item in iter {
@@ -158,7 +161,7 @@ impl<T> core::iter::FromIterator<T> for Stele<T> {
 impl<T, A: Allocator> Drop for Stele<T, A> {
     fn drop(&mut self) {
         #[cfg(not(loom))]
-        let size = *self.cap.get_mut();
+        let size = *self.len.get_mut();
         #[cfg(loom)]
         let size = unsafe { self.cap.unsync_load() };
         let num_inners = WORD_SIZE - size.leading_zeros() as usize;
