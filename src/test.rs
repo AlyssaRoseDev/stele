@@ -30,3 +30,23 @@ fn getcopy() {
 fn never_writes() {
     let (_wh, _rh) = Stele::<()>::new();
 }
+
+#[test]
+fn iterator() {
+    let sequence = &[92, 47, 68, 23, 15];
+    let (_, rh) = sequence.iter().copied().collect::<Stele<_>>().to_handles();
+    let ref_iter = rh.iter();
+    for (stele, orig) in ref_iter.zip(sequence.iter()) {
+        assert_eq!(stele, orig);
+    }
+}
+
+#[test]
+fn copy_iterator() {
+    let sequence = [92, 47, 68, 23, 15];
+    let (_, rh) = sequence.iter().copied().collect::<Stele<_>>().to_handles();
+    let ref_iter = rh.into_iter();
+    for (stele, orig) in ref_iter.zip(sequence.iter().copied()) {
+        assert_eq!(stele, orig);
+    }
+}
