@@ -6,7 +6,7 @@ use self::{reader::ReadHandle, writer::WriteHandle};
 use crate::{
     max_len, split_idx,
     sync::{Arc, AtomicPtr, AtomicUsize},
-    Inner, WORD_SIZE,
+    Inner,
 };
 
 ///Iterate over a Stele by Reference or by Value (for copy types)
@@ -24,7 +24,7 @@ pub mod writer;
 /// pointers, which does increase the memory footprint.
 #[derive(Debug)]
 pub struct Stele<T, A: Allocator = Global> {
-    inners: [AtomicPtr<Inner<T>>; WORD_SIZE],
+    inners: [AtomicPtr<Inner<T>>; 32],
     len: AtomicUsize,
     allocator: A,
 }
@@ -40,7 +40,7 @@ impl<T> Stele<T> {
     /// Creates a new Stele returns a [`WriteHandle`] and [`ReadHandle`]
     pub fn new() -> (WriteHandle<T>, ReadHandle<T>) {
         let s = Arc::new(Self {
-            inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
+            inners: [(); 32].map(|_| crate::sync::AtomicPtr::new(null_mut())),
             len: AtomicUsize::new(0),
             allocator: Global,
         });
@@ -54,10 +54,21 @@ impl<T> Stele<T> {
 }
 
 impl<T, A: Allocator> Stele<T, A> {
+
+    //Taken from the standard libraries small vector optimization
+    const INITIAL_SIZE: usize = {
+        match core::mem::size_of::<T>() {
+            1 => 3,
+            //Exclusive ranges are unstable so @ finally has a use
+            i @ 2.. if i < 1024 => 2,
+            _ => 1
+        }
+    };
+
     /// Creates a new Stele with the given allocator and returns a [`WriteHandle`] and [`ReadHandle`]
     pub fn new_in(allocator: A) -> (WriteHandle<T, A>, ReadHandle<T, A>) {
         let s = Arc::new(Self {
-            inners: [(); WORD_SIZE].map(|_| crate::sync::AtomicPtr::new(null_mut())),
+            inners: [(); 32].map(|_| crate::sync::AtomicPtr::new(null_mut())),
             len: AtomicUsize::new(0),
             allocator,
         });
@@ -87,7 +98,7 @@ impl<T, A: Allocator> Stele<T, A> {
         //SAFETY: By only incrementing the index after appending the element we ensure that we never allow reads to access unwritten memory
         //and by the safety contract of `push` we know we aren't writing to the same spot multiple times
         unsafe {
-            if idx.is_power_of_two() || idx == 0 || idx == 1 {
+            if (idx.is_power_of_two() && outer_idx >= Self::INITIAL_SIZE) || (outer_idx < Self::INITIAL_SIZE && self.is_empty()) {
                 self.allocate(outer_idx, max_len(outer_idx));
             }
             *self.inners[outer_idx]
@@ -98,6 +109,16 @@ impl<T, A: Allocator> Stele<T, A> {
     }
 
     fn allocate(&self, idx: usize, len: usize) {
+        if idx == 0 {
+            (0..Self::INITIAL_SIZE).for_each(|i| {
+                self.inners[i].compare_exchange(
+                    core::ptr::null_mut(),
+                    unsafe { crate::mem::alloc_inner(&self.allocator, max_len(i))},
+                    Ordering::AcqRel,
+                    Ordering::Relaxed)
+                    .expect("The pointer is null because we have just incremented the cap to the head of this pointer");
+            });
+        } else {
         self.inners[idx]
             .compare_exchange(
                 core::ptr::null_mut(),
@@ -106,6 +127,7 @@ impl<T, A: Allocator> Stele<T, A> {
                 Ordering::Relaxed,
             )
             .expect("The pointer is null because we have just incremented the cap to the head of this pointer");
+        }
     }
 
     pub(crate) fn read(&self, idx: usize) -> &T {
@@ -146,7 +168,7 @@ impl<T: Copy, A: Allocator> Stele<T, A> {
 impl<T> core::iter::FromIterator<T> for Stele<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let s = Stele {
-            inners: [(); WORD_SIZE].map(|_| AtomicPtr::new(null_mut())),
+            inners: [(); 32].map(|_| AtomicPtr::new(null_mut())),
             len: AtomicUsize::new(0),
             allocator: Global,
         };
@@ -164,7 +186,7 @@ impl<T, A: Allocator> Drop for Stele<T, A> {
         let size = *self.len.get_mut();
         #[cfg(loom)]
         let size = unsafe { self.len.unsync_load() };
-        let num_inners = WORD_SIZE - size.leading_zeros() as usize;
+        let num_inners = 32_usize.saturating_sub(size.leading_zeros() as usize);
         for idx in 0..num_inners {
             #[cfg(not(loom))]
             unsafe {
