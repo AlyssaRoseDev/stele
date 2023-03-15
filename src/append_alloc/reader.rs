@@ -56,7 +56,7 @@ impl<T, A: Allocator> ReadHandle<T, A> {
     ///
     /// This is primarily used to ensure the creation of a [`RefIterator`] when T is Copy
     #[must_use]
-    pub fn iter(&self) -> RefIterator<'_, T> {
+    pub fn iter(&self) -> RefIterator<'_, T, A> {
         self.into_iter()
     }
 }

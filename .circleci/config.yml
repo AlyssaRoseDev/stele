@@ -54,10 +54,11 @@ jobs:
   coverage:
     docker:
       - image: *img
+    resource_class: large
     steps:
       - checkout
       - rust/install:
-        version: nightly
+          version: nightly
       - run: rustup component add llvm-tools-preview
       - run: cargo install cargo-llvm-cov
       - run: cargo llvm-cov --lcov --output-path lcov.info

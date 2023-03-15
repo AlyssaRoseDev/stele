@@ -2,6 +2,7 @@ use alloc::alloc::{Allocator, Global};
 
 use super::reader::ReadHandle;
 
+///An iterator that yields items by reference
 #[derive(Debug)]
 pub struct RefIterator<'rh, T, A: Allocator = Global> {
     handle: &'rh ReadHandle<T, A>,
@@ -10,6 +11,7 @@ pub struct RefIterator<'rh, T, A: Allocator = Global> {
 }
 
 impl<'rh, T, A: Allocator> RefIterator<'rh, T, A> {
+    ///Creates a new [`RefIterator`], borrowing the handle until dropped
     pub fn new(handle: &'rh ReadHandle<T, A>) -> Self {
         RefIterator {
             handle,
@@ -33,6 +35,7 @@ impl<'rh, T, A: Allocator> Iterator for RefIterator<'rh, T, A> {
     }
 }
 
+///An iterator that yields items by value if the type implements copy
 #[derive(Debug)]
 pub struct CopyIterator<T: Copy, A: Allocator = Global> {
     handle: ReadHandle<T, A>,
@@ -40,6 +43,7 @@ pub struct CopyIterator<T: Copy, A: Allocator = Global> {
 }
 
 impl<T: Copy, A: Allocator> CopyIterator<T, A> {
+    ///Creates a new [`CopyIterator`], consuming the [`ReadHandle`]
     pub fn new(handle: ReadHandle<T, A>) -> Self {
         Self { handle, pos: 0 }
     }

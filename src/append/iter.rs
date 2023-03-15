@@ -1,6 +1,6 @@
 use super::reader::ReadHandle;
 
-    ///An iterator that yields items by reference
+///An iterator that yields items by reference
 #[derive(Debug)]
 pub struct RefIterator<'rh, T> {
     handle: &'rh ReadHandle<T>,

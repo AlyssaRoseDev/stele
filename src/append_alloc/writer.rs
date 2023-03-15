@@ -1,8 +1,7 @@
 use core::marker::PhantomData;
-use core::sync::atomic::Ordering;
 
 use super::{ReadHandle, Stele};
-use crate::{max_len, split_idx, sync::Arc};
+use crate::sync::Arc;
 use alloc::alloc::{Allocator, Global};
 
 /// The writer for a [`Stele`]

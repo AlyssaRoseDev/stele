@@ -30,7 +30,7 @@ fn getcopy() {
 fn never_writes() {
     let (_wh, _rh) = Stele::<()>::new();
 }
-
+    
 #[test]
 fn iterator() {
     let sequence = &[92, 47, 68, 23, 15];

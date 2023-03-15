@@ -68,6 +68,15 @@ mod without_allocator {
             unsafe { dealloc(ptr.cast(), layout) }
         }
     }
+
+    #[cfg(test)]
+    fn allocation() {
+        unsafe {
+            let ptr = alloc_inner::<u8>(1);
+            assert!(!core::ptr::eq(ptr, core::ptr::null()));
+            dealloc_inner(ptr, 1);
+        }
+    }
 }
 
 #[cfg(feature = "allocator_api")]
