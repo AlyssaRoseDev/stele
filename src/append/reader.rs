@@ -117,7 +117,7 @@ impl<T> From<&Arc<Stele<T>>> for ReadHandle<T> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(loom)))]
 mod tests {
     use crate::Stele;
 
