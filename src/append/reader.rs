@@ -20,7 +20,7 @@ impl<T> ReadHandle<T> {
     /// Reads the value at the given index
     ///
     /// # Panic
-    /// 
+    ///
     /// This function panics in debug if the given index is out of bounds.
     /// Since [`Index`] operates through this function, this same caveat also applies when indexing
     #[must_use]
@@ -65,7 +65,7 @@ impl<T: Copy> ReadHandle<T> {
     /// provided the `T` implements [`Copy`]
     ///
     /// # Panic
-    /// 
+    ///
     /// This function panics in debug if the given index is out of bounds
     #[must_use]
     pub fn get(&self, idx: usize) -> T {

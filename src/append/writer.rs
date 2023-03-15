@@ -12,9 +12,9 @@ use crate::{sync::Arc, ReadHandle, Stele};
 /// in any one memory location using [`fetch_add`](core::sync::atomic::AtomicUsize::fetch_add),
 /// there can still be a race where a concurrent push while a previous push is still allocating can
 /// segfault as readers can see the new length before memory is written.
-/// 
+///
 /// - ## Why can I only append?
-/// 
+///
 /// Append-only concurrent data structures avoid a major problem in the concurrent data structure space:
 /// Memory Reclamation. By only allowing appending elements and not mutation or removal, there cannot be a read-write data race,
 /// and all data is reclaimed if and only if there are no more handles left,
@@ -46,7 +46,7 @@ impl<T> WriteHandle<T> {
     /// Reads the value at the given index
     ///
     /// # Panic
-    /// 
+    ///
     /// This function panics in debug if the given index is out of bounds.
     #[must_use]
     pub fn read(&self, idx: usize) -> &T {

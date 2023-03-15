@@ -1,6 +1,6 @@
 use super::Stele;
 use crate::{
-    append::iter::{CopyIterator, RefIterator},
+    append_alloc::iter::{CopyIterator, RefIterator},
     sync::Arc,
 };
 use alloc::alloc::{Allocator, Global};
@@ -21,7 +21,7 @@ impl<T, A: Allocator> ReadHandle<T, A> {
     /// Reads the value at the given index
     ///
     /// # Panic
-    /// 
+    ///
     /// This function panics in debug if the given index is out of bounds.
     /// Since [`Index`] operates through this function, this same caveat also applies when indexing
     #[must_use]
@@ -66,7 +66,7 @@ impl<T: Copy, A: Allocator> ReadHandle<T, A> {
     /// provided the `T` implements [`Copy`]
     ///
     /// # Panic
-    /// 
+    ///
     /// This function panics in debug if the given index is out of bounds
     #[must_use]
     pub fn get(&self, idx: usize) -> T {

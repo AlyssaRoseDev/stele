@@ -31,7 +31,9 @@ pub use append::Stele;
 pub(crate) use mem::Inner;
 
 const fn split_idx(idx: usize) -> (usize, usize) {
-    let outer_idx = 32_usize.saturating_sub((idx.leading_zeros() as usize).saturating_sub(usize::BITS.saturating_sub(32) as usize));
+    let outer_idx = 32_usize.saturating_sub(
+        (idx.leading_zeros() as usize).saturating_sub(usize::BITS.saturating_sub(32) as usize),
+    );
     let inner_idx = idx.saturating_sub(1 << (outer_idx.saturating_sub(1)));
     (outer_idx, inner_idx)
 }

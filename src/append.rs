@@ -32,14 +32,13 @@ unsafe impl<T> Send for Stele<T> where T: Send + Sync {}
 unsafe impl<T> Sync for Stele<T> where T: Send + Sync {}
 
 impl<T> Stele<T> {
-
     //Taken from the standard libraries small vector optimization
     const INITIAL_SIZE: usize = {
         match core::mem::size_of::<T>() {
             1 => 3,
             //Exclusive ranges are unstable so @ finally has a use
             i @ 2.. if i < 1024 => 2,
-            _ => 1
+            _ => 1,
         }
     };
 
@@ -77,7 +76,9 @@ impl<T> Stele<T> {
         //SAFETY: By only incrementing the index after appending the element we ensure that we never allow reads to access unwritten memory
         //and by the safety contract of `push` we know we aren't writing to the same spot multiple times
         unsafe {
-            if (idx.is_power_of_two() && outer_idx > Self::INITIAL_SIZE) || (outer_idx <= Self::INITIAL_SIZE && self.is_empty()) {
+            if (idx.is_power_of_two() && outer_idx > Self::INITIAL_SIZE)
+                || (outer_idx <= Self::INITIAL_SIZE && self.is_empty())
+            {
                 self.allocate(outer_idx);
             }
             *self.inners[outer_idx]
@@ -98,7 +99,7 @@ impl<T> Stele<T> {
                     .expect("The pointer is null because we have just incremented the cap to the head of this pointer");
             });
         } else {
-        self.inners[idx]
+            self.inners[idx]
             .compare_exchange(
                 core::ptr::null_mut(),
                 unsafe { crate::mem::alloc_inner(max_len(idx)) },
