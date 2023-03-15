@@ -70,6 +70,7 @@ mod without_allocator {
     }
 
     #[cfg(test)]
+    #[test]
     fn allocation() {
         unsafe {
             let ptr = alloc_inner::<u8>(1);
@@ -120,6 +121,19 @@ mod allocator {
             // SAFETY: By the safety contract of `dealloc_inner` and (in debug) the asserts above, we know
             // that ptr can not be null as `alloc_inner` does not hand out null pointers
             unsafe { allocator.deallocate(NonNull::new_unchecked(ptr.cast()), layout) }
+        }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn allocation() {
+        use alloc::alloc::Global;
+
+        let allocator = &Global;
+        unsafe {
+            let ptr = alloc_inner::<u8>(allocator, 1);
+            assert!(!core::ptr::eq(ptr, core::ptr::null()));
+            dealloc_inner(allocator, ptr, 1);
         }
     }
 }

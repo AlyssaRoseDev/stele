@@ -116,3 +116,21 @@ impl<T> From<&Arc<Stele<T>>> for ReadHandle<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::Stele;
+
+    #[test]
+    fn reads() {
+        let (writer, reader) = Stele::new();
+        assert!(writer.is_empty());
+        writer.push(42);
+        assert_eq!(writer.len(), 1);
+        assert_eq!(reader.read(1), &42);
+        assert_eq!(reader[1], 42);
+        assert!(reader.try_read(2).is_none());
+        let copied = writer.get(1);
+        assert_eq!(copied, 42);
+    }
+}
