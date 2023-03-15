@@ -56,11 +56,18 @@ jobs:
       - image: *img
     steps:
       - checkout
+      - rust/install:
+        version: nightly
       - run: rustup component add llvm-tools-preview
       - run: cargo install cargo-llvm-cov
       - run: cargo llvm-cov --lcov --output-path lcov.info
-      - codecov/upload:
+      - run: cargo +nightly llvm-cov --lcov --all-features --output-path lcovnightly.info
+      - codecov/upload: 
           file: lcov.info
+          flags: stable
+      - codecov/upload: 
+          file: lcovnightly.info
+          flags: nightly
 workflows:
   full:
     jobs:
