@@ -1,0 +1,27 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 0%
+        flags:
+          - stable
+      nightly:
+        target: 80%
+        threshold: 0%
+        flags:
+          - nightly
+
+flags:
+  stable:
+    paths:
+      - "./project/src/mem.rs"
+      - "./project/src/lib.rs"
+      - "./project/src/append.rs"
+      - "./project/src/append/*"
+  nightly:
+    paths:
+      - "./project/src/mem.rs"
+      - "./project/src/lib.rs"
+      - "./project/src/append_alloc.rs"
+      - "./project/src/append_alloc/*"

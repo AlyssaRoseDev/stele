@@ -1,4 +1,8 @@
 # Stele
+[![codecov](https://codecov.io/gh/AlyssaRoseDev/stele/branch/main/graph/badge.svg?token=WSBP2ZWO0M)](https://codecov.io/gh/AlyssaRoseDev/stele)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/AlyssaRoseDev/stele/tree/main.svg?style=shield)](https://dl.circleci.com/status-badge/redirect/gh/AlyssaRoseDev/stele/tree/main)
+[![docsrs](https://img.shields.io/docsrs/stele)](https://docs.rs/stele/)
+
 Stele is a Single Writer, Many Reader append-only concurrent data structure with opt-in support for no_std and the Allocator API
 
 ## How does it work?
@@ -29,18 +33,18 @@ fn example() {
     assert_eq!(writer.len(), 1);
     let t1 = thread::spawn(move || {
         // For most types, reads can only return references
-        assert_eq!(reader1.read(1), &42)
+        assert_eq!(reader1.read(0), &42)
     });
     let t2 = thread::spawn(move || {
         //Readers also support indexing
-        assert_eq!(reader2[1], 42)
+        assert_eq!(reader2[0], 42)
     });
     let t3 = thread::spawn(move || {
         //Supports fallible indexing via `try_read`
-        assert!(reader3.try_read(2).is_none())
+        assert!(reader3.try_read(1).is_none())
     });
     //`Copy` types can be copied out using `get`
-    let copied = writer.get(1);
+    let copied = writer.get(0);
     assert_eq!(copied, 42);
 }
 ```

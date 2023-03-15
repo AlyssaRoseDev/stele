@@ -20,7 +20,7 @@ impl<T> ReadHandle<T> {
     /// Reads the value at the given index
     ///
     /// # Panic
-    /// 
+    ///
     /// This function panics in debug if the given index is out of bounds.
     /// Since [`Index`] operates through this function, this same caveat also applies when indexing
     #[must_use]
@@ -65,7 +65,7 @@ impl<T: Copy> ReadHandle<T> {
     /// provided the `T` implements [`Copy`]
     ///
     /// # Panic
-    /// 
+    ///
     /// This function panics in debug if the given index is out of bounds
     #[must_use]
     pub fn get(&self, idx: usize) -> T {
@@ -114,5 +114,23 @@ impl<T> From<&Arc<Stele<T>>> for ReadHandle<T> {
         Self {
             handle: Arc::clone(h),
         }
+    }
+}
+
+#[cfg(all(test, not(loom)))]
+mod tests {
+    use crate::Stele;
+
+    #[test]
+    fn reads() {
+        let (writer, reader) = Stele::new();
+        assert!(writer.is_empty());
+        writer.push(42);
+        assert_eq!(writer.len(), 1);
+        assert_eq!(reader.read(0), &42);
+        assert_eq!(reader[0], 42);
+        assert!(reader.try_read(1).is_none());
+        let copied = writer.get(0);
+        assert_eq!(copied, 42);
     }
 }

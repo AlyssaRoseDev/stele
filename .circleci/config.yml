@@ -3,9 +3,15 @@ orbs:
   rust: circleci/rust@1.6.0
   codecov: codecov/codecov@3.2.4
 jobs:
+  build:
+    docker: 
+      - image: &img cimg/rust:1.64
+    steps:
+      - checkout
+      - rust/build
   test:
     docker:
-      - image: &img cimg/rust:1.64
+      - image: *img
     steps:
       - checkout
       - run:
@@ -48,16 +54,25 @@ jobs:
   coverage:
     docker:
       - image: *img
+    resource_class: large
     steps:
       - checkout
+      - rust/install:
+          version: nightly
       - run: rustup component add llvm-tools-preview
       - run: cargo install cargo-llvm-cov
       - run: cargo llvm-cov --lcov --output-path lcov.info
-      - codecov/upload:
+      - run: cargo +nightly llvm-cov --lcov --all-features --output-path lcovnightly.info
+      - codecov/upload: 
           file: lcov.info
+          flags: stable
+      - codecov/upload: 
+          file: lcovnightly.info
+          flags: nightly
 workflows:
   full:
     jobs:
+      - build
       - test
       - loom
       - checks
