@@ -33,18 +33,18 @@ fn example() {
     assert_eq!(writer.len(), 1);
     let t1 = thread::spawn(move || {
         // For most types, reads can only return references
-        assert_eq!(reader1.read(1), &42)
+        assert_eq!(reader1.read(0), &42)
     });
     let t2 = thread::spawn(move || {
         //Readers also support indexing
-        assert_eq!(reader2[1], 42)
+        assert_eq!(reader2[0], 42)
     });
     let t3 = thread::spawn(move || {
         //Supports fallible indexing via `try_read`
-        assert!(reader3.try_read(2).is_none())
+        assert!(reader3.try_read(1).is_none())
     });
     //`Copy` types can be copied out using `get`
-    let copied = writer.get(1);
+    let copied = writer.get(0);
     assert_eq!(copied, 42);
 }
 ```
