@@ -131,7 +131,7 @@ mod allocator {
 
         let allocator = &Global;
         unsafe {
-            let ptr = alloc_inner::<u8>(allocator, 1);
+            let ptr = alloc_inner::<u8, _>(allocator, 1);
             assert!(!core::ptr::eq(ptr, core::ptr::null()));
             dealloc_inner(allocator, ptr, 1);
         }
