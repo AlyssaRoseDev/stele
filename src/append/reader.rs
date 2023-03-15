@@ -129,7 +129,7 @@ mod tests {
         assert_eq!(writer.len(), 1);
         assert_eq!(reader.read(0), &42);
         assert_eq!(reader[0], 42);
-        assert!(reader.try_read(2).is_none());
+        assert!(reader.try_read(1).is_none());
         let copied = writer.get(0);
         assert_eq!(copied, 42);
     }

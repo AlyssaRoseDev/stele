@@ -117,7 +117,7 @@ impl<T> Stele<T> {
 
     pub(crate) fn try_read(&self, idx: usize) -> Option<&T> {
         //SAFETY: Null pointers return None from mut_ptr::as_ref()
-        if idx > self.len() {
+        if idx >= self.len() {
             None
         } else {
             //SAFETY: Null pointers return None from mut_ptr::as_ref()
