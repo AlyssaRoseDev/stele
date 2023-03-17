@@ -61,14 +61,11 @@ jobs:
           version: nightly
       - run: rustup component add llvm-tools-preview
       - run: cargo install cargo-llvm-cov
-      - run: cargo llvm-cov --lcov --output-path lcov.info
-      - run: cargo +nightly llvm-cov --lcov --all-features --output-path lcovnightly.info
+      - run: cargo llvm-cov --no-report
+      - run: cargo +nightly llvm-cov --all-features
+      - run: cargo llvm-cov report --lcov --output-path lcov.info
       - codecov/upload: 
           file: lcov.info
-          flags: stable
-      - codecov/upload: 
-          file: lcovnightly.info
-          flags: nightly
 workflows:
   full:
     jobs:
