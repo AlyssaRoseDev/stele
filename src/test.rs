@@ -28,7 +28,9 @@ fn getcopy() {
 
 #[test]
 fn never_writes() {
-    let (_wh, _rh) = Stele::<()>::new();
+    let (wh, rh) = Stele::<()>::new();
+    assert!(wh.is_empty());
+    assert!(rh.is_empty());
 }
 
 #[test]
@@ -49,4 +51,16 @@ fn copy_iterator() {
     for (stele, orig) in ref_iter.zip(sequence.iter().copied()) {
         assert_eq!(stele, orig);
     }
+}
+
+#[test]
+fn read_through_writer() {
+    let (wh, _) = Stele::<u8>::new();
+    let rh = wh.new_read_handle();
+    wh.push(42);
+    assert_eq!(wh.read(0), &42_u8);
+    assert_eq!(wh.get(0), 42_u8);
+    assert_eq!(wh.read(0), rh.read(0));
+    assert_eq!(wh.get(0), rh.get(0));
+    assert!(wh.try_read(1).is_none());
 }
