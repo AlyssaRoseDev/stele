@@ -17,6 +17,18 @@ jobs:
       - run:
           name: Tests
           command: cargo test --all-targets
+  miri:
+    docker:
+      - image: *img
+    steps:
+      - checkout
+      - run: rustup component add miri
+      - run:
+          name: Tests
+          command: cargo miri test
+      - run:
+          name: Allocator Tests
+          command: cargo miri test --all-targets
   nightly_test:
     docker:
       - image: *img

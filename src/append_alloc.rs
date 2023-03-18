@@ -1,4 +1,4 @@
-use core::{fmt::Debug, marker::PhantomData, ptr::null_mut, sync::atomic::Ordering};
+use core::{fmt::Debug, marker::PhantomData, ptr::null_mut, sync::atomic::Ordering, cmp::max};
 extern crate alloc;
 use alloc::alloc::{Allocator, Global};
 
@@ -97,8 +97,8 @@ impl<T, A: Allocator> Stele<T, A> {
         //SAFETY: By only incrementing the index after appending the element we ensure that we never allow reads to access unwritten memory
         //and by the safety contract of `push` we know we aren't writing to the same spot multiple times
         unsafe {
-            if (idx.is_power_of_two() && outer_idx >= Self::INITIAL_SIZE)
-                || (outer_idx < Self::INITIAL_SIZE && self.is_empty())
+            if (idx.is_power_of_two() && outer_idx > Self::INITIAL_SIZE)
+                || (outer_idx <= Self::INITIAL_SIZE && self.is_empty())
             {
                 self.allocate(outer_idx, max_len(outer_idx));
             }
@@ -111,7 +111,7 @@ impl<T, A: Allocator> Stele<T, A> {
 
     fn allocate(&self, idx: usize, len: usize) {
         if idx == 0 {
-            (0..Self::INITIAL_SIZE).for_each(|i| {
+            (0..=Self::INITIAL_SIZE).for_each(|i| {
                 self.inners[i].compare_exchange(
                     core::ptr::null_mut(),
                     unsafe { crate::mem::alloc_inner(&self.allocator, max_len(i))},
@@ -191,7 +191,13 @@ impl<T, A: Allocator> Drop for Stele<T, A> {
         let size = *self.len.get_mut();
         #[cfg(loom)]
         let size = unsafe { self.len.unsync_load() };
-        let num_inners = 32_usize.saturating_sub(size.leading_zeros() as usize);
+        if size == 0 {
+            return;
+        }
+        let num_inners = max(
+            (usize::BITS as usize) - (size.next_power_of_two().leading_zeros() as usize),
+            Self::INITIAL_SIZE + 1
+        );
         for idx in 0..num_inners {
             #[cfg(not(loom))]
             unsafe {
