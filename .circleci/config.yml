@@ -83,6 +83,7 @@ workflows:
     jobs:
       - build
       - test
+      - miri
       - loom
       - checks
       - coverage:
