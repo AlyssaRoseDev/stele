@@ -20,15 +20,18 @@ jobs:
   miri:
     docker:
       - image: *img
+    resource_class: large
     steps:
       - checkout
-      - run: rustup component add miri
+      - rust/install:
+          version: nightly
+      - run: rustup component add miri --toolchain nightly
       - run:
           name: Tests
-          command: cargo miri test
+          command: cargo +nightly miri test
       - run:
           name: Allocator Tests
-          command: cargo miri test --all-targets
+          command: cargo +nightly miri test --all-targets
   nightly_test:
     docker:
       - image: *img
