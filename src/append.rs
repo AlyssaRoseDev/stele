@@ -1,4 +1,4 @@
-use core::{fmt::Debug, marker::PhantomData, ptr::null_mut, sync::atomic::Ordering, cmp::max};
+use core::{cmp::max, fmt::Debug, marker::PhantomData, ptr::null_mut, sync::atomic::Ordering};
 extern crate alloc;
 
 use self::{reader::ReadHandle, writer::WriteHandle};
@@ -176,7 +176,7 @@ impl<T> Drop for Stele<T> {
         }
         let num_inners = max(
             (usize::BITS as usize) - (size.next_power_of_two().leading_zeros() as usize),
-            Self::INITIAL_SIZE + 1
+            Self::INITIAL_SIZE + 1,
         );
         for idx in 0..num_inners {
             #[cfg(not(loom))]

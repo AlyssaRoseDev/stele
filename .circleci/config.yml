@@ -65,6 +65,7 @@ jobs:
       - run:
           name: no_std
           command: cargo test --no-default-features
+      - run: cargo fmt --check
     parallelism: 3
   coverage:
     docker:
