@@ -50,6 +50,6 @@ fn example() {
 ```
 
 ## Minimum Supported Rust Version (MSRV)
-- Without the allocator api, MSRV is 1.54
+- Without the allocator api, MSRV is 1.55
 
 - As of 2023-03-12, the allocator api requires nightly and does not have a stable version. Once the allocator api is supported on stable this will be replaced with said stable version
