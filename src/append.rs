@@ -36,21 +36,17 @@ impl<T> Stele<T> {
     const INITIAL_SIZE: usize = {
         match core::mem::size_of::<T>() {
             1 => 3,
-            //Exclusive ranges are unstable so @ finally has a use
-            2..=1023 => 2,
+             2..=1023 => 2,
             _ => 1,
         }
     };
-
-    #[allow(clippy::declare_interior_mutable_const)]
-    const INNER: AtomicPtr<Inner<T>> = AtomicPtr::new(null_mut());
 
     #[allow(clippy::new_ret_no_self)]
     #[must_use]
     /// Creates a new Stele returns a [`WriteHandle`] and [`ReadHandle`]
     pub fn new() -> (WriteHandle<T>, ReadHandle<T>) {
         let s = Arc::new(Self {
-            inners: [Self::INNER; 32],
+            inners: [(); 32].map(|_| crate::sync::AtomicPtr::new(null_mut())),
             len: AtomicUsize::new(0),
         });
         let h = WriteHandle {
@@ -157,14 +153,12 @@ impl<T: Copy> Stele<T> {
 impl<T> core::iter::FromIterator<T> for Stele<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let s = Stele {
-            inners: [Self::INNER; 32],
+            inners: [(); 32].map(|_| AtomicPtr::new(null_mut())),
             len: AtomicUsize::new(0),
         };
         for item in iter {
             //SAFETY: We are the only writer since we just created the Stele
-            unsafe {
-                s.push(item);
-            };
+            unsafe { s.push(item) };
         }
         s
     }

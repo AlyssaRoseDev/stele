@@ -58,19 +58,15 @@ impl<T, A: Allocator> Stele<T, A> {
     const INITIAL_SIZE: usize = {
         match core::mem::size_of::<T>() {
             1 => 3,
-            //Exclusive ranges are unstable so @ finally has a use
             2..=1023 => 2,
             _ => 1,
         }
     };
 
-    #[allow(clippy::declare_interior_mutable_const)]
-    const INNER: AtomicPtr<Inner<T>> = AtomicPtr::new(null_mut());
-
     /// Creates a new Stele with the given allocator and returns a [`WriteHandle`] and [`ReadHandle`]
     pub fn new_in(allocator: A) -> (WriteHandle<T, A>, ReadHandle<T, A>) {
         let s = Arc::new(Self {
-            inners: [Self::INNER; 32],
+            inners: [(); 32].map(|_| crate::sync::AtomicPtr::new(null_mut())),
             len: AtomicUsize::new(0),
             allocator,
         });
