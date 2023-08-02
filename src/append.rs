@@ -36,7 +36,7 @@ impl<T> Stele<T> {
     const INITIAL_SIZE: usize = {
         match core::mem::size_of::<T>() {
             1 => 3,
-             2..=1023 => 2,
+            2..=1023 => 2,
             _ => 1,
         }
     };
