@@ -104,7 +104,7 @@ mod allocator {
         } else {
             let layout = Layout::array::<T>(len)
                 .expect("Len is constrained by the safety contract of alloc_inner()!");
-            let ptr = match allocactor.allocate(layout) {
+            let ptr = match allocator.allocate(layout) {
                 Ok(p) => p,
                 Err(_) => handle_alloc_error(layout),
             };
