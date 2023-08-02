@@ -11,15 +11,17 @@ pub(crate) struct Inner<T> {
 
 impl<T> Inner<T> {
     pub(crate) fn new(val: T) -> Self {
-        let init: MaybeUninit<UnsafeCell<T>> = MaybeUninit::new(UnsafeCell::new(val));
-        Self { raw: init }
+        Self {
+            raw: MaybeUninit::new(UnsafeCell::new(val)),
+        }
     }
 
     /// SAFETY: The Inner must have been written to before reading
     pub(crate) unsafe fn read(&self) -> &T {
         unsafe {
-            self.raw.assume_init_ref().get().as_ref()
-            .expect("`alloc_inner` does not hand out null pointers and the constraints of `Stele::read` requires that the index is inbounds")
+            // self.raw.assume_init_ref().get().as_ref()
+            // .expect("`alloc_inner` does not hand out null pointers and the constraints of `Inner::read` requires that the index is inbounds")
+            &*(&*self.raw.as_ptr()).get()
         }
     }
 }
@@ -29,7 +31,10 @@ where
     T: Copy,
 {
     pub(crate) unsafe fn get(&self) -> T {
-        unsafe { *self.raw.assume_init_ref().get() }
+        unsafe {
+            *(&*self.raw.as_ptr()).get()
+            // *self.raw.assume_init_ref().get()
+        }
     }
 }
 
@@ -65,7 +70,9 @@ mod without_allocator {
                 .expect("Len is constrained by the safety contract of dealloc_inner()!");
             // SAFETY: By the safety contract of `dealloc_inner` and (in debug) the asserts above, we know
             // that ptr can not be null as `alloc_inner` does not hand out null pointers
-            unsafe { dealloc(ptr.cast(), layout) }
+            unsafe {
+                dealloc(ptr.cast(), layout);
+            }
         }
     }
 
@@ -97,7 +104,10 @@ mod allocator {
         } else {
             let layout = Layout::array::<T>(len)
                 .expect("Len is constrained by the safety contract of alloc_inner()!");
-            let Ok(ptr) = allocator.allocate(layout) else {handle_alloc_error(layout)};
+            let ptr = match allocactor.allocate(layout) {
+                Ok(p) => p,
+                Err(_) => handle_alloc_error(layout),
+            };
             ptr.as_ptr().cast()
         }
     }

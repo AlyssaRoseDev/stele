@@ -34,7 +34,9 @@ impl<T> WriteHandle<T> {
     pub fn push(&self, val: T) {
         //SAFETY: WriteHandle is neither Sync nor Clone so only one exists at a time
         //and can only be used by one thread at a time
-        unsafe { self.handle.push(val) };
+        unsafe {
+            self.handle.push(val);
+        };
     }
 
     /// Creates a new [`ReadHandle`]
