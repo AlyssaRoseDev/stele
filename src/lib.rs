@@ -15,6 +15,10 @@ extern crate alloc;
 #[cfg(any(not(feature = "allocator_api"), doc))]
 #[cfg_attr(doc, doc(cfg(not(feature = "allocator_api"))))]
 pub mod append;
+
+#[cfg(any(not(feature = "allocator_api"), doc))]
+#[cfg_attr(doc, doc(cfg(not(feature = "allocator_api"))))]
+pub use append;
 #[cfg(any(feature = "allocator_api", doc))]
 #[cfg_attr(doc, doc(cfg(feature = "allocator_api")))]
 ///The Allocator API compatible Stele implementation
