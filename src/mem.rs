@@ -19,7 +19,10 @@ impl<T> Inner<T> {
     /// SAFETY: The Inner must have been written to before reading
     pub(crate) unsafe fn read(&self) -> &T {
         unsafe {
-            (*self.raw.as_ptr()).get().as_ref().expect("Pointer is non null")
+            (*self.raw.as_ptr())
+                .get()
+                .as_ref()
+                .expect("Pointer is non null")
         }
     }
 }
@@ -29,9 +32,7 @@ where
     T: Copy,
 {
     pub(crate) unsafe fn get(&self) -> T {
-        unsafe {
-            *(*self.raw.as_ptr()).get()
-        }
+        unsafe { *(*self.raw.as_ptr()).get() }
     }
 }
 
