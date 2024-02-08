@@ -58,6 +58,8 @@ jobs:
       - checkout
       - rust/install:
           version: nightly
+      - run: cargo install cargo-msrv
+      - run: cargo msrv --verify
       - run: cargo clippy
       - run:
           name: cargo doc
