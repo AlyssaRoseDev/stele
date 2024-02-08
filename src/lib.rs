@@ -1,6 +1,7 @@
 #![deny(
     unsafe_op_in_unsafe_fn,
     clippy::pedantic,
+    clippy::style,
     rustdoc::broken_intra_doc_links,
     missing_debug_implementations
 )]

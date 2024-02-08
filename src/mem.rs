@@ -19,9 +19,7 @@ impl<T> Inner<T> {
     /// SAFETY: The Inner must have been written to before reading
     pub(crate) unsafe fn read(&self) -> &T {
         unsafe {
-            // self.raw.assume_init_ref().get().as_ref()
-            // .expect("`alloc_inner` does not hand out null pointers and the constraints of `Inner::read` requires that the index is inbounds")
-            &*(&*self.raw.as_ptr()).get()
+            (*self.raw.as_ptr()).get().as_ref().expect("Pointer is non null")
         }
     }
 }
@@ -32,8 +30,7 @@ where
 {
     pub(crate) unsafe fn get(&self) -> T {
         unsafe {
-            *(&*self.raw.as_ptr()).get()
-            // *self.raw.assume_init_ref().get()
+            *(*self.raw.as_ptr()).get()
         }
     }
 }

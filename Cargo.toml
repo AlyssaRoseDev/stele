@@ -8,6 +8,9 @@ keywords = ["data-structure", "concurrent"]
 edition = "2018"
 exclude = ["/.circleci", "codecov.yml"]
 
+[package.metadata]
+msrv = "1.55.0"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]

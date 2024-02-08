@@ -46,7 +46,7 @@ impl<T> Stele<T> {
     /// Creates a new Stele returns a [`WriteHandle`] and [`ReadHandle`]
     pub fn new() -> (WriteHandle<T>, ReadHandle<T>) {
         let s = Arc::new(Self {
-            inners: [(); 32].map(|_| crate::sync::AtomicPtr::new(null_mut())),
+            inners: [(); 32].map(|()| crate::sync::AtomicPtr::new(null_mut())),
             len: AtomicUsize::new(0),
         });
         let h = WriteHandle {
@@ -153,7 +153,7 @@ impl<T: Copy> Stele<T> {
 impl<T> core::iter::FromIterator<T> for Stele<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let s = Stele {
-            inners: [(); 32].map(|_| AtomicPtr::new(null_mut())),
+            inners: [(); 32].map(|()| AtomicPtr::new(null_mut())),
             len: AtomicUsize::new(0),
         };
         for item in iter {
