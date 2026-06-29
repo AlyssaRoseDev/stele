@@ -7,7 +7,7 @@ jobs:
       - image: &img cimg/rust:1.55
     steps:
       - checkout
-      - rust/build
+      - run: cargo build
   test:
     docker:
       - image: *img
@@ -22,8 +22,7 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - rust/install:
-          version: nightly
+      - run: rustup install nightly
       - run: rustup component add miri --toolchain nightly
       - run:
           name: Tests
@@ -36,8 +35,7 @@ jobs:
       - image: *img
     steps:
       - checkout
-      - rust/install:
-          version: nightly
+      - run: rustup install nightly
       - run:
           name: Nightly Tests
           command: cargo +nightly test --all-targets --all-features
@@ -55,8 +53,7 @@ jobs:
       - image: *img
     steps:
       - checkout
-      - rust/install:
-          version: nightly
+      - run: rustup install nightly 
       - run: cargo install cargo-msrv
       - run: cargo msrv --verify
       - run: cargo clippy
@@ -74,8 +71,7 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - rust/install:
-          version: nightly
+      - run: rustup install nightly
       - run: rustup component add llvm-tools-preview
       - run: cargo install cargo-llvm-cov
       - run: cargo llvm-cov --no-report
