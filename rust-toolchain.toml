@@ -1,0 +1,4 @@
+[toolchain]
+#1.64.0 is the oldest version of rust with the rust-analyzer component, otherwise I could set this to 1.55.0
+channel = "1.64.0"
+components = ["rust-analyzer", "clippy"]

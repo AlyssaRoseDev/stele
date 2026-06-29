@@ -1,11 +1,10 @@
 version: 2.1
 orbs:
-  rust: circleci/rust@1.6.0
-  codecov: codecov/codecov@3.2.4
+  codecov: codecov/codecov@6.0.0
 jobs:
   build:
     docker: 
-      - image: &img cimg/rust:1.65
+      - image: &img cimg/rust:1.55
     steps:
       - checkout
       - rust/build
