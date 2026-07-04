@@ -68,16 +68,17 @@ jobs:
     parallelism: 3
   coverage:
     docker:
-      - image: *img
+      - image: cimg/base:current
     resource_class: large
     steps:
       - checkout
+      - run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - run: rustup install nightly
       - run: rustup component add llvm-tools-preview --toolchain nightly
       - run: cargo +nightly install cargo-llvm-cov
       - run: cargo +nightly llvm-cov --no-report
       - run: cargo +nightly llvm-cov --all-features
-      - run: cargo llvm-cov report --lcov --output-path lcov.info
+      - run: cargo +nightly llvm-cov report --lcov --output-path lcov.info
       - codecov/upload
 workflows:
   full:
