@@ -51,9 +51,11 @@ jobs:
           command: RUSTFLAGS="--cfg loom" cargo +nightly test --all-targets --release
   checks:
     docker:
-      - image: *img
+      - image: cimg/base:current
     steps:
       - checkout
+      - run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      - run: exec bash
       - run: rustup install nightly 
       - run: cargo +nightly install cargo-msrv
       - run: cargo +nightly msrv --verify
@@ -73,6 +75,7 @@ jobs:
     steps:
       - checkout
       - run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      - run: exec bash
       - run: rustup install nightly
       - run: rustup component add llvm-tools-preview --toolchain nightly
       - run: cargo +nightly install cargo-llvm-cov
