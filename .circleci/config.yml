@@ -51,11 +51,9 @@ jobs:
           command: RUSTFLAGS="--cfg loom" cargo +nightly test --all-targets --release
   checks:
     docker:
-      - image: cimg/base:current
+      - image: cimg/rust:1.96
     steps:
       - checkout
-      - run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-      - run: exec bash
       - run: rustup install nightly 
       - run: cargo +nightly install cargo-msrv
       - run: cargo +nightly msrv --verify
@@ -70,12 +68,10 @@ jobs:
     parallelism: 3
   coverage:
     docker:
-      - image: cimg/base:current
+      - image: cimg/rust:1.96
     resource_class: large
     steps:
       - checkout
-      - run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-      - run: exec bash
       - run: rustup install nightly
       - run: rustup component add llvm-tools-preview --toolchain nightly
       - run: cargo +nightly install cargo-llvm-cov
