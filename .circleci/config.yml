@@ -56,7 +56,7 @@ jobs:
       - checkout
       - run: rustup install nightly 
       - run: cargo +nightly install cargo-msrv
-      - run: cargo +nightly msrv --verify
+      - run: cargo +nightly msrv verify
       - run: cargo clippy
       - run:
           name: cargo doc
